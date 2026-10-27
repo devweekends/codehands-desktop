@@ -156,3 +156,16 @@ Details are in the [plan](https://github.com/devweekends/codehands-docs/blob/mai
 - One branch per Linear issue, the issue id in the PR title.
 - `main` is always green. CI runs build and test on every PR.
 - Anything the app needs from another part (a new column, a new event field) is a contract change: open it in [codehands-contracts](https://github.com/devweekends/codehands-contracts#changing-a-contract).
+
+
+
+## Run
+
+```
+pnpm install
+pnpm tauri dev
+```
+
+Requires Node, pnpm, and Rust (with the Visual Studio C++ build tools on Windows).
+
+In dev, the app starts `fake-daemon.mjs` itself. It is temporary and will be replaced by the real daemon from codehands-server.
