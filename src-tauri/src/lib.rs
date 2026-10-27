@@ -8,14 +8,12 @@ struct Daemon(Mutex<Option<Child>>);
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             // App khulte hi fake daemon start karo
             // (dev mein folder src-tauri hota hai, is liye ../ lagaya)
-            let child = Command::new("node")
-                .arg("../fake-daemon.mjs")
-                .spawn()
-                .ok();
+            let child = Command::new("node").arg("../fake-daemon.mjs").spawn().ok();
             app.manage(Daemon(Mutex::new(child)));
             Ok(())
         })
