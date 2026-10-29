@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout desktop
+        uses: actions/checkout@v4
+        with:
+          path: desktop
+
+      - name: Checkout contracts
+        uses: actions/checkout@v4
+        with:
+          repository: devweekends/codehands-contracts
+          path: codehands-contracts
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: desktop/pnpm-lock.yaml
+
+      - name: Build contracts
+        run: |
+          cd codehands-contracts
+          pnpm install
+          pnpm build
+
+      - name: Build desktop
+        run: |
+          cd desktop
+          pnpm install
+          pnpm build
+

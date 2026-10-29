@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@codehands/contracts':
+        specifier: file:../codehands-contracts
+        version: file:../codehands-contracts
       '@tauri-apps/api':
         specifier: ^2
         version: 2.12.4
@@ -44,6 +47,10 @@ importers:
         version: 8.22.0
 
 packages:
+
+  '@codehands/contracts@file:../codehands-contracts':
+    resolution: {directory: ../codehands-contracts, type: directory}
+    engines: {node: '>=22'}
 
   '@oxc-project/types@0.154.0':
     resolution: {integrity: sha512-KYOUGQFlLWR+s4QMV2Q9ko38TZm7EdO87Qm7rvZLqk/webse/cDjtyxKhg/47l0byCbs/k46LT8qc4PKjAikzA==}
@@ -450,6 +457,8 @@ packages:
         optional: true
 
 snapshots:
+
+  '@codehands/contracts@file:../codehands-contracts': {}
 
   '@oxc-project/types@0.154.0': {}
 
