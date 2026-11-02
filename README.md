@@ -7,7 +7,7 @@ It is the main way people use Code Hands AI. Everything a task needs runs on the
 **Owner:** Tania
 **Contracts:** L1 (local DB), C3 (cloud API), C5 (sessions) in [codehands-contracts](https://github.com/devweekends/codehands-contracts)
 **Part of:** [Code Hands AI](https://github.com/devweekends/codehands-docs). Read the design in that README first.
-**Status:** not started. This repo has no code yet. This README describes what the app must do and how it fits, so it can be built against stand-ins from day one.
+**Status:** early implementation. The desktop UI connects to the local daemon database and writes task/command rows; the current daemon watcher does not yet execute agent runs.
 
 ## Where it sits
 
@@ -166,6 +166,8 @@ pnpm install
 pnpm tauri dev
 ```
 
-Requires Node, pnpm, and Rust (with the Visual Studio C++ build tools on Windows).
+Requires Node 22.5+, pnpm, Rust, and the Tauri prerequisites (including Visual Studio C++ build tools on Windows). Clone `codehands-backend` and `codehands-contracts` beside this repo under `D:\dev`, as in the team workspace.
 
-In dev, the app starts `fake-daemon.mjs` itself. It is temporary and will be replaced by the real daemon from codehands-server.
+In development, Tauri starts `local-daemon-bridge.mjs`. It applies migrations from `../codehands-backend/daemon/migrations`, opens the same `~/.codehands/state.db` database, and starts the daemon watcher when the daemon's dependencies are installed. The app writes only `projects`, `tasks`, and `commands`; the watcher owns sessions and events. Set `CODEHANDS_DAEMON_DIR` if the daemon clone is not at `../codehands-backend/daemon`, or `CODEHANDS_DB` to use a separate SQLite file. The bridge listens on `127.0.0.1:8787` by default.
+
+The current daemon source is still a queue prototype: it claims tasks and records approve/reject commands, but it does not yet invoke Claude Code or Codex, create worktrees, commit changes, or stop/resume runs. The UI displays this limitation and does not present queue connectivity as agent execution. `fake-daemon.mjs` is no longer started by the desktop app. The local adapter uses port `8788` to avoid colliding with older fake-daemon instances on `8787`.

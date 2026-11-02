@@ -3,6 +3,7 @@ import type { AgentKind } from "@codehands/contracts";
 
 interface NewTaskFormProps {
   connected: boolean;
+  initialRepo?: string;
   onStart: (taskData: {
     repo: string;
     prompt: string;
@@ -33,8 +34,26 @@ const DEFAULT_PHASE_MODELS = {
   review: "sonnet",
 };
 
-export function NewTaskForm({ connected, onStart, onCancel }: NewTaskFormProps) {
-  const [repo, setRepo] = useState("d:\\dev\\sample-repo");
+const PHASE_DEFAULTS: Record<AgentKind, typeof DEFAULT_PHASE_MODELS> = {
+  "claude-code": DEFAULT_PHASE_MODELS,
+  codex: {
+    analyze: "gpt-5-mini",
+    plan: "gpt-5.5",
+    implement: "gpt-5.5",
+    test: "gpt-5-mini",
+    review: "gpt-5.5",
+  },
+  codehands: {
+    analyze: "qwen-2.5-coder",
+    plan: "claude-3-5-sonnet",
+    implement: "qwen-2.5-coder",
+    test: "qwen-2.5-coder",
+    review: "claude-3-5-sonnet",
+  },
+};
+
+export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTaskFormProps) {
+  const [repo, setRepo] = useState(initialRepo || "d:\\dev\\sample-repo");
   const [prompt, setPrompt] = useState("");
   const [agent, setAgent] = useState<AgentKind>("claude-code");
   const [model, setModel] = useState("sonnet");
@@ -48,6 +67,7 @@ export function NewTaskForm({ connected, onStart, onCancel }: NewTaskFormProps) 
     if (available.length > 0) {
       setModel(available[0]);
     }
+    setPhaseModels(PHASE_DEFAULTS[newAgent]);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -82,12 +102,24 @@ export function NewTaskForm({ connected, onStart, onCancel }: NewTaskFormProps) 
   };
 
   return (
-    <section className="card form-container">
+    <section className="form-container">
+      <div className="task-form-card">
       <div className="card-header">
-        <h2>Create New Task</h2>
+        <div className="eyebrow">LOCAL WORKSPACE / NEW TASK</div>
+        <h2>Start a coding task</h2>
         <p className="muted-text">
-          Writes one task row to the local database. The daemon will pick it up and run it in an isolated worktree.
+          Describe the outcome you want. Code Hands will add it to the task queue in your local daemon database.
         </p>
+      </div>
+
+      <div className="runner-notice"><span>ⓘ</span><p><strong>Runner integration is still in progress.</strong> The current daemon accepts and tracks queued tasks, but does not yet invoke Claude Code or Codex.</p></div>
+
+      <div className="form-group run-target-group">
+        <label>Run location</label>
+        <div className="run-target-options">
+          <div className="run-target selected"><span className="target-icon">⌘</span><span><strong>This device</strong><small>Local daemon · private workspace</small></span><i>Selected</i></div>
+          <div className="run-target unavailable"><span className="target-icon">☁</span><span><strong>Cloud worker</strong><small>Remote execution will be opt-in</small></span><i>Planned</i></div>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit}>
@@ -104,7 +136,7 @@ export function NewTaskForm({ connected, onStart, onCancel }: NewTaskFormProps) 
             />
           </div>
           <small className="muted-text">
-            Tasks run in a private git worktree; your main checkout is never touched.
+            This path is stored locally and is not sent to the cloud.
           </small>
         </div>
 
@@ -169,8 +201,7 @@ export function NewTaskForm({ connected, onStart, onCancel }: NewTaskFormProps) 
                 (phase) => (
                   <div key={phase} className="phase-item">
                     <label>{phase.toUpperCase()}</label>
-                    <input
-                      type="text"
+                    <select
                       value={phaseModels[phase]}
                       onChange={(e) =>
                         setPhaseModels({
@@ -178,7 +209,11 @@ export function NewTaskForm({ connected, onStart, onCancel }: NewTaskFormProps) 
                           [phase]: e.target.value,
                         })
                       }
-                    />
+                    >
+                      {(AVAILABLE_MODELS[agent] || []).map((availableModel) => (
+                        <option key={availableModel} value={availableModel}>{availableModel}</option>
+                      ))}
+                    </select>
                   </div>
                 )
               )}
@@ -201,6 +236,7 @@ export function NewTaskForm({ connected, onStart, onCancel }: NewTaskFormProps) 
           </button>
         </div>
       </form>
+      </div>
     </section>
   );
 }

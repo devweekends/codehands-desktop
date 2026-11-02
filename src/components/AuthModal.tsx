@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { AuthResult } from "@codehands/contracts";
 import { cloudApi } from "../api/cloud";
 import { saveDeviceToken } from "../services/keychain";
@@ -16,6 +16,13 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
   const [deviceName, setDeviceName] = useState("laptop-A");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [serverStatus, setServerStatus] = useState<"unknown" | "ok" | "offline">("unknown");
+
+  // Check server health when modal opens so user knows if real server is up
+  useEffect(() => {
+    if (!isOpen) return;
+    cloudApi.checkHealth().then((h) => setServerStatus(h.ok ? "ok" : "offline"));
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -34,7 +41,7 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
 
       onSuccess(result);
     } catch (err: any) {
-      setError(err?.message || "Authentication failed. Check if C3 mock server is running.");
+      setError(err?.message || "Authentication failed. Check if the C3 server is running on port 3000.");
     } finally {
       setLoading(false);
     }
@@ -51,6 +58,15 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
             </button>
           )}
         </div>
+
+        {/* Server status banner */}
+        {serverStatus !== "unknown" && (
+          <div className={serverStatus === "ok" ? "alert-success" : "alert-warning"}>
+            {serverStatus === "ok"
+              ? "✓ Connected to C3 server"
+              : "⚠ C3 server unreachable — start it with: cd codehands-backend && npm run dev"}
+          </div>
+        )}
 
         {isExpiredPrompt && (
           <div className="alert-warning">
@@ -85,7 +101,10 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
               placeholder="GitHub authorization code"
               required
             />
-            <small className="muted-text">Using mock OAuth code against local C3 mock.</small>
+            <small className="muted-text">
+              Real server: visit GitHub OAuth URL, copy the <code>code=</code> param from the redirect.
+              Mock server: any string works.
+            </small>
           </div>
 
           {error && <div className="alert-error">{error}</div>}
