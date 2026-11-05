@@ -27,9 +27,12 @@ export default function App() {
   const [providers, setProviders] = useState<ProviderStatus[]>([]);
   const [events, setEvents] = useState<Record<string, SessionEvent[]>>({});
   const [connected, setConnected] = useState(false);
-  const [view, setView] = useState<View>({ name: "list" });
+  const [view, setView] = useState<View>({ name: "new" });
   const [filter, setFilter] = useState<SessionFilter>("all");
   const [daemonState, setDaemonState] = useState<"starting" | "running" | "unavailable">("starting");
+  const [runnerReady, setRunnerReady] = useState(false);
+  const [runnerReason, setRunnerReason] = useState<string | null>(null);
+  const [runnerMode, setRunnerMode] = useState<"fake" | "real">("fake");
   const [notice, setNotice] = useState<string | null>(null);
   const [initialRepo, setInitialRepo] = useState("");
 
@@ -65,13 +68,9 @@ export default function App() {
               cloudApi.setToken(storedToken);
             }
           } else {
-            // No meta yet — minimal hydration so app knows you're logged in
-            setAuth({
-              userId: "",
-              device: { id: "", name: "this-device", createdAt: new Date().toISOString() },
-              deviceToken: storedToken,
-            });
-            cloudApi.setToken(storedToken);
+            // A token without account metadata cannot identify the account safely.
+            await deleteDeviceToken();
+            cloudApi.setToken(null);
           }
         }
       } catch (err) {
@@ -114,6 +113,9 @@ export default function App() {
             setProviders(msg.providers || []);
             setEvents(msg.events || {});
             setDaemonState(msg.daemon?.watcher === "running" ? "running" : "unavailable");
+            setRunnerReady(msg.daemon?.runner?.available === true);
+            setRunnerReason(msg.daemon?.runner?.reason || null);
+            setRunnerMode(msg.daemon?.runner?.mode === "real" ? "real" : "fake");
           }
 
           if (msg.type === "session") {
@@ -139,7 +141,7 @@ export default function App() {
           }
 
           if (msg.type === "accepted") {
-            setNotice("Task added to the local daemon queue.");
+            setNotice("Task added to the local workspace. The runner is starting.");
             setView({ name: "list" });
           }
 
@@ -228,7 +230,7 @@ export default function App() {
     // Persist auth meta (userId, device) separately — token is in keychain
     localStorage.setItem(
       "codehands_auth_meta",
-      JSON.stringify({ userId: result.userId, device: result.device, deviceToken: "" })
+      JSON.stringify({ userId: result.userId, name: result.name, email: result.email, device: result.device, deviceToken: "" })
     );
     setIsAuthModalOpen(false);
     setIsTokenExpired(false);
@@ -264,7 +266,7 @@ export default function App() {
           <span className="workspace-chevron">⌄</span>
         </button>
 
-        <button className="sidebar-new-task" onClick={() => setView({ name: "new" })}>
+        <button className={view.name === "new" ? "sidebar-new-task active" : "sidebar-new-task"} onClick={() => setView({ name: "new" })} aria-current={view.name === "new" ? "page" : undefined}>
           <span>＋</span> New task <kbd>Ctrl K</kbd>
         </button>
 
@@ -287,6 +289,34 @@ export default function App() {
           </button>
         </nav>
 
+        <section className="sidebar-session-section" aria-labelledby="sidebar-sessions-title">
+          <div className="sidebar-section-heading">
+            <div className="sidebar-section-label" id="sidebar-sessions-title">SESSIONS</div>
+            <button className="sessions-view-all" onClick={() => { setView({ name: "list" }); setFilter("all"); }}>View all</button>
+          </div>
+          {sortedSessions.length ? (
+            <nav className="sidebar-session-list" aria-label="Sessions">
+              {sortedSessions.map((session) => (
+                <button
+                  key={session.id}
+                  className={view.name === "session" && view.id === session.id ? "sidebar-session active" : "sidebar-session"}
+                  onClick={() => setView({ name: "session", id: session.id })}
+                  aria-current={view.name === "session" && view.id === session.id ? "page" : undefined}
+                  title={session.title || session.prompt || `Task ${session.id.slice(0, 8)}`}
+                >
+                  <span className={`session-status-mark status-mark-${session.status}`} aria-hidden="true" />
+                  <span className="sidebar-session-copy">
+                    <strong>{session.title || session.prompt || `Task ${session.id.slice(0, 8)}`}</strong>
+                    <small>{session.status.replace(/_/g, " ")}</small>
+                  </span>
+                </button>
+              ))}
+            </nav>
+          ) : (
+            <p className="sidebar-sessions-empty">Your task sessions will appear here.</p>
+          )}
+        </section>
+
         <div className="sidebar-section-label secondary-section">CONFIGURE</div>
         <nav className="sidebar-nav" aria-label="Configuration">
           <button className={view.name === "agents" ? "nav-item active" : "nav-item"} onClick={() => setView({ name: "agents" })}>
@@ -300,12 +330,12 @@ export default function App() {
         <div className="sidebar-bottom">
           <div className={`daemon-card ${connected && daemonState === "running" ? "daemon-ready" : "daemon-offline"}`}>
             <span className="daemon-indicator" />
-            <div><strong>{connected && daemonState === "running" ? "Daemon connected" : connected ? "Queue connected" : "Connecting locally"}</strong><small>{connected && daemonState === "running" ? "Watcher is running" : "Local SQLite workspace"}</small></div>
+            <div><strong>{connected && daemonState === "running" ? (runnerReady ? "Runner ready" : "Daemon connected") : connected ? "Starting local daemon" : "Connecting locally"}</strong><small>{runnerReady ? "Claude Code is ready" : runnerReason || "Claude Code runner unavailable"}</small></div>
           </div>
           <div className="sidebar-account">
-            <div className="account-avatar">{auth ? (auth.userId.slice(0, 1).toUpperCase() || "U") : "G"}</div>
-            <div className="account-copy"><strong>{auth?.userId || "Guest account"}</strong><small>{auth?.device.name || "Local-only mode"}</small></div>
-            {auth ? <button className="account-action" onClick={handleLogout} title="Log out">⋯</button> : <button className="account-signin" onClick={() => setIsAuthModalOpen(true)}>Sign in</button>}
+            <div className="account-avatar">{auth ? ((auth.name || auth.userId).slice(0, 1).toUpperCase() || "U") : "G"}</div>
+            <div className="account-copy"><strong>{auth?.name || "Guest account"}</strong><small>{auth?.email || auth?.device.name || "Local-only mode"}</small></div>
+            {auth ? <button className="account-action" onClick={handleLogout} title="Log out">Log out</button> : <button className="account-signin" onClick={() => setIsAuthModalOpen(true)}>Sign in</button>}
           </div>
         </div>
       </aside>
@@ -315,10 +345,6 @@ export default function App() {
           connected={connected}
         />
         {notice && <button className="notice-banner" onClick={() => setNotice(null)}>{notice}<span>×</span></button>}
-        {connected && (
-          <div className="runner-notice"><span>ⓘ</span><p><strong>Local queue is connected.</strong> The cloned daemon currently has no agent runner wired in, so tasks can be queued and observed but are not executed yet.</p></div>
-        )}
-
         {view.name === "list" && (
           <TaskDashboard
             sessions={sortedSessions}
@@ -332,9 +358,12 @@ export default function App() {
         {view.name === "new" && (
           <NewTaskForm
             connected={connected}
+            runnerReady={runnerReady}
+            runnerReason={runnerReason}
+            runnerMode={runnerMode}
             initialRepo={initialRepo}
             onStart={handleStartTask}
-            onCancel={() => setView({ name: "list" })}
+            onCancel={() => { setView({ name: "list" }); setFilter("all"); }}
           />
         )}
 

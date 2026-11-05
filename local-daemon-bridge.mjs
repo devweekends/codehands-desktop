@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -13,8 +13,11 @@ const DAEMON_ROOT = process.env.CODEHANDS_DAEMON_DIR
   : resolve(APP_ROOT, "..", "codehands-backend", "daemon");
 const DB_PATH = process.env.CODEHANDS_DB || join(homedir(), ".codehands", "state.db");
 const PORT = Number(process.env.CODEHANDS_LOCAL_PORT || 8788);
+const CLAUDE_PATH = process.env.CODEHANDS_CLAUDE_PATH || "claude";
+const RUNNER_MODE = process.env.CODEHANDS_RUNNER || "fake";
+const USE_FAKE_RUNNER = RUNNER_MODE !== "real";
 const VALID_AGENTS = new Set(["claude-code", "codex", "codehands"]);
-const VALID_COMMANDS = new Set(["approve", "reject"]);
+const VALID_COMMANDS = new Set(["approve", "reject", "stop", "resume"]);
 
 if (!existsSync(join(DAEMON_ROOT, "migrations"))) {
   throw new Error(`Could not find daemon migrations at ${DAEMON_ROOT}. Set CODEHANDS_DAEMON_DIR to the daemon clone.`);
@@ -79,12 +82,10 @@ function startWatcher() {
     console.warn("[desktop bridge] daemon dependencies are not installed; app can queue tasks but watcher will be offline.");
     return null;
   }
-  const windows = process.platform === "win32";
-  return spawn(windows ? "cmd.exe" : "npm", windows
-    ? ["/d", "/s", "/c", "npm run watch"]
-    : ["run", "watch"], {
+  const tsxCli = join(DAEMON_ROOT, "node_modules", "tsx", "dist", "cli.mjs");
+  return spawn(process.execPath, [tsxCli, "src/watcher.ts"], {
     cwd: DAEMON_ROOT,
-    env: process.env,
+    env: { ...process.env, CODEHANDS_FAKE: USE_FAKE_RUNNER ? "true" : "false" },
     windowsHide: true,
     stdio: "ignore",
   });
@@ -134,8 +135,56 @@ function readState() {
     providers,
     sessions,
     events,
-    daemon: { watcher: watcherState, execution: "runner-not-integrated" },
+    daemon: {
+      watcher: watcherState,
+      execution: "runner-integrated",
+      runner: getRunnerStatus(),
+    },
   };
+}
+
+function getRunnerStatus() {
+  if (USE_FAKE_RUNNER) {
+    return {
+      available: true,
+      mode: "fake",
+      command: "built-in fake runner",
+      version: "demo",
+      reason: "Using the built-in demo runner. No Claude subscription is required.",
+    };
+  }
+  try {
+    const version = execFileSync(CLAUDE_PATH, ["--version"], {
+      encoding: "utf8",
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+    const auth = spawnSync(CLAUDE_PATH, ["auth", "status"], {
+      encoding: "utf8",
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let authStatus = null;
+    try { authStatus = JSON.parse(auth.stdout || "{}"); } catch { /* older CLI may not support JSON auth status */ }
+    if (authStatus && authStatus.loggedIn === false) {
+      return {
+        available: false,
+        command: CLAUDE_PATH,
+        version,
+        reason: "Claude Code is installed but not signed in. Run `claude`, choose /login, then restart Code Hands.",
+      };
+    }
+    return { available: true, mode: "real", command: CLAUDE_PATH, version };
+  } catch (error) {
+    return {
+      available: false,
+      mode: "real",
+      command: CLAUDE_PATH,
+      reason: error?.code === "ENOENT"
+        ? "Claude Code is not installed or is not on the daemon PATH."
+        : "Claude Code could not be started. Check its installation and login.",
+    };
+  }
 }
 
 function broadcastState() {
@@ -204,10 +253,19 @@ function createCommand(sessionId, commandKind) {
   }
   const session = db.prepare("select id, project_id as projectId, status from sessions where id = ?").get(sessionId);
   if (!session) throw new Error("Session not found.");
-  const targetStatus = commandKind === "approve" ? "approved" : "rejected";
-  const allowed = commandKind === "approve" || commandKind === "reject"
-    ? session.status === "awaiting_approval"
-    : false;
+  const targetStatus = {
+    approve: "approved",
+    reject: "rejected",
+    stop: "stopped",
+    resume: "running",
+  }[commandKind];
+  const expectedStatus = {
+    approve: "awaiting_approval",
+    reject: "awaiting_approval",
+    stop: "running",
+    resume: "stopped",
+  }[commandKind];
+  const allowed = session.status === expectedStatus;
   if (!allowed) throw new Error(`Cannot ${commandKind} a session while it is ${session.status}.`);
   db.prepare("insert into commands (id, session_id, project_id, kind, created_by) values (?, ?, ?, ?, ?)")
     .run(randomUUID(), session.id, session.projectId, commandKind, "desktop");

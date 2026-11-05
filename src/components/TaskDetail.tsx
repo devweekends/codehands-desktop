@@ -12,7 +12,7 @@ export interface SessionEvent {
   id: number;
   sessionId: string;
   eventType: string;
-  payload: { summary?: string; files?: DiffFile[]; from?: string; to?: string; reason?: string };
+  payload: { summary?: string; files?: DiffFile[]; from?: string; to?: string; reason?: string; result?: string };
   ts: string;
 }
 
@@ -108,7 +108,7 @@ export function TaskDetail({ session, events, onCommand, onBack }: TaskDetailPro
             {events.length ? [...events].reverse().map((event) => (
               <li key={`${event.sessionId}-${event.id}`}>
                 <span className="activity-marker" />
-                <div><strong>{eventName(event)}</strong>{event.payload.reason && <p>{event.payload.reason}</p>}<time>{new Date(event.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></div>
+                <div><strong>{eventName(event)}</strong>{(event.payload.reason || event.payload.result) && <p>{event.payload.reason || event.payload.result}</p>}<time>{new Date(event.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time></div>
               </li>
             )) : <li className="activity-placeholder"><span className="activity-marker" /><div><strong>Waiting for daemon events</strong><time>Connected to local session state</time></div></li>}
           </ol>

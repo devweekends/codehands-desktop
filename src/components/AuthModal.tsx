@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { AuthResult } from "@codehands/contracts";
 import { cloudApi } from "../api/cloud";
 import { saveDeviceToken } from "../services/keychain";
@@ -12,16 +12,24 @@ interface AuthModalProps {
 
 export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthModalProps) {
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [githubCode, setGithubCode] = useState("gho_mock_code_123");
-  const [deviceName, setDeviceName] = useState("laptop-A");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [serverStatus, setServerStatus] = useState<"unknown" | "ok" | "offline">("unknown");
+  const [serverAvailable, setServerAvailable] = useState<boolean | null>(null);
+  const [serverIssue, setServerIssue] = useState<string | null>(null);
 
-  // Check server health when modal opens so user knows if real server is up
   useEffect(() => {
     if (!isOpen) return;
-    cloudApi.checkHealth().then((h) => setServerStatus(h.ok ? "ok" : "offline"));
+    let active = true;
+    cloudApi.checkHealth().then(({ ok, error: issue }) => {
+      if (active) {
+        setServerAvailable(ok);
+        setServerIssue(issue ?? null);
+      }
+    });
+    return () => { active = false; };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -32,16 +40,22 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
     setError(null);
 
     try {
-      const input = { githubCode, deviceName };
       const result =
-        mode === "login" ? await cloudApi.logIn(input) : await cloudApi.signUp(input);
+        mode === "login"
+          ? await cloudApi.logIn({ email: email.trim(), password })
+          : await cloudApi.signUp({ name: name.trim(), email: email.trim(), password });
 
       // Store deviceToken securely in OS Keychain (COD-291)
       await saveDeviceToken(result.deviceToken);
 
       onSuccess(result);
-    } catch (err: any) {
-      setError(err?.message || "Authentication failed. Check if the C3 server is running on port 3000.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      setError(
+        !message || message === "Failed to fetch" || message.includes("NetworkError")
+          ? `Can't reach the sign-in server at ${cloudApi.getBaseUrl()}. Start the backend or configure VITE_CLOUD_URL.`
+          : message
+      );
     } finally {
       setLoading(false);
     }
@@ -59,15 +73,6 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
           )}
         </div>
 
-        {/* Server status banner */}
-        {serverStatus !== "unknown" && (
-          <div className={serverStatus === "ok" ? "alert-success" : "alert-warning"}>
-            {serverStatus === "ok"
-              ? "✓ Connected to C3 server"
-              : "⚠ C3 server unreachable — start it with: cd codehands-backend && npm run dev"}
-          </div>
-        )}
-
         {isExpiredPrompt && (
           <div className="alert-warning">
             Your session token expired. Please sign in again to continue where you left off.
@@ -75,43 +80,65 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
         )}
 
         <p className="modal-description">
-          Authenticate with the C3 Cloud API to obtain a device token for this machine.
+          {mode === "login" ? "Sign in to sync your account." : "Create an account to get started."}
         </p>
 
+        {serverAvailable === false && (
+          <div className="alert-warning" role="status">
+            {serverIssue || `Sign-in server is unreachable at ${cloudApi.getBaseUrl()}. Check VITE_CLOUD_URL.`}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
+          {mode === "signup" && (
+            <div className="form-group">
+              <label htmlFor="authName">Name</label>
+              <input
+                id="authName"
+                type="text"
+                autoComplete="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Your name"
+                maxLength={100}
+                required
+              />
+            </div>
+          )}
+
           <div className="form-group">
-            <label htmlFor="deviceName">Device Name (per laptop)</label>
+            <label htmlFor="authEmail">Email</label>
             <input
-              id="deviceName"
-              type="text"
-              value={deviceName}
-              onChange={(e) => setDeviceName(e.target.value)}
-              placeholder="e.g. MacBook-Pro, ThinkPad-X1"
+              id="authEmail"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
               required
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="githubCode">GitHub OAuth Code</label>
+            <label htmlFor="authPassword">Password</label>
             <input
-              id="githubCode"
-              type="text"
-              value={githubCode}
-              onChange={(e) => setGithubCode(e.target.value)}
-              placeholder="GitHub authorization code"
+              id="authPassword"
+              type="password"
+              autoComplete={mode === "login" ? "current-password" : "new-password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              minLength={8}
+              maxLength={128}
               required
             />
-            <small className="muted-text">
-              Real server: visit GitHub OAuth URL, copy the <code>code=</code> param from the redirect.
-              Mock server: any string works.
-            </small>
           </div>
 
           {error && <div className="alert-error">{error}</div>}
 
           <div className="form-actions">
             <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? "Authenticating..." : mode === "login" ? "Sign In" : "Sign Up"}
+              {loading ? "Please wait…" : mode === "login" ? "Sign In" : "Create account"}
             </button>
           </div>
         </form>
@@ -119,15 +146,15 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
         <div className="modal-footer">
           {mode === "login" ? (
             <p>
-              Need a new device account?{" "}
-              <button className="btn-link" onClick={() => setMode("signup")}>
+              Don’t have an account?{" "}
+              <button type="button" className="btn-link" onClick={() => { setError(null); setMode("signup"); }}>
                 Sign up
               </button>
             </p>
           ) : (
             <p>
               Already registered?{" "}
-              <button className="btn-link" onClick={() => setMode("login")}>
+              <button type="button" className="btn-link" onClick={() => { setError(null); setMode("login"); }}>
                 Log in
               </button>
             </p>

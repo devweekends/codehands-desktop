@@ -3,6 +3,9 @@ import type { AgentKind } from "@codehands/contracts";
 
 interface NewTaskFormProps {
   connected: boolean;
+  runnerReady: boolean;
+  runnerReason?: string | null;
+  runnerMode?: "fake" | "real";
   initialRepo?: string;
   onStart: (taskData: {
     repo: string;
@@ -52,7 +55,7 @@ const PHASE_DEFAULTS: Record<AgentKind, typeof DEFAULT_PHASE_MODELS> = {
   },
 };
 
-export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTaskFormProps) {
+export function NewTaskForm({ connected, runnerReady, runnerReason, runnerMode = "fake", initialRepo, onStart, onCancel }: NewTaskFormProps) {
   const [repo, setRepo] = useState(initialRepo || "d:\\dev\\sample-repo");
   const [prompt, setPrompt] = useState("");
   const [agent, setAgent] = useState<AgentKind>("claude-code");
@@ -64,9 +67,7 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
   const handleAgentChange = (newAgent: AgentKind) => {
     setAgent(newAgent);
     const available = AVAILABLE_MODELS[newAgent] || [];
-    if (available.length > 0) {
-      setModel(available[0]);
-    }
+    if (available.length > 0) setModel(available[0]);
     setPhaseModels(PHASE_DEFAULTS[newAgent]);
   };
 
@@ -86,8 +87,11 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
       setError("Cannot write task: daemon is not connected.");
       return;
     }
+    if (!runnerReady) {
+      setError(runnerReason || "The local runner is not ready. Restart Code Hands and check the daemon.");
+      return;
+    }
 
-    // Strictly writes one tasks row to daemon (COD-293)
     const success = onStart({
       repo: repo.trim(),
       prompt: prompt.trim(),
@@ -96,147 +100,95 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
       phaseModels: customizePhases ? phaseModels : undefined,
     });
 
-    if (!success) {
-      setError("Failed to dispatch task to local daemon.");
-    }
+    if (!success) setError("Failed to dispatch task to local daemon.");
   };
 
   return (
-    <section className="form-container">
-      <div className="task-form-card">
-      <div className="card-header">
-        <div className="eyebrow">LOCAL WORKSPACE / NEW TASK</div>
-        <h2>Start a coding task</h2>
-        <p className="muted-text">
-          Describe the outcome you want. Code Hands will add it to the task queue in your local daemon database.
-        </p>
+    <section className="form-container composer-page" aria-labelledby="composer-title">
+      <button type="button" className="composer-back-link" onClick={onCancel}>← Browse sessions</button>
+      <header className="composer-heading">
+        <div className="eyebrow">CODE HANDS · LOCAL WORKSPACE</div>
+        <h1 id="composer-title">What would you like to work on?</h1>
+        <p>Describe the change in your own words. Your task and repository path stay in this local workspace.</p>
+      </header>
+
+      <div className="runner-notice composer-runner-notice" role="note">
+        <span aria-hidden="true">ⓘ</span>
+        <p><strong>{runnerReady ? (runnerMode === "fake" ? "Demo runner ready." : "Claude runner ready.") : "Daemon connected, runner unavailable."}</strong> {runnerReady ? (runnerMode === "fake" ? "Using pre-generated local events. No Claude subscription is required." : "Claude Code will work in a separate Git worktree; review the diff before approving it.") : runnerReason || "Start the daemon or check runner configuration."}</p>
       </div>
 
-      <div className="runner-notice"><span>ⓘ</span><p><strong>Runner integration is still in progress.</strong> The current daemon accepts and tracks queued tasks, but does not yet invoke Claude Code or Codex.</p></div>
+      <form className="task-composer" onSubmit={handleSubmit}>
+        <label className="sr-only" htmlFor="taskPrompt">Describe the coding task</label>
+        <textarea
+          id="taskPrompt"
+          className="composer-prompt"
+          rows={6}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder={'Ask Code Hands to make a change…\n\nFor example: Add pagination to the users endpoint and cover the new behavior with tests.'}
+          required
+        />
 
-      <div className="form-group run-target-group">
-        <label>Run location</label>
-        <div className="run-target-options">
-          <div className="run-target selected"><span className="target-icon">⌘</span><span><strong>This device</strong><small>Local daemon · private workspace</small></span><i>Selected</i></div>
-          <div className="run-target unavailable"><span className="target-icon">☁</span><span><strong>Cloud worker</strong><small>Remote execution will be opt-in</small></span><i>Planned</i></div>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="repoPath">Repository Path</label>
-          <div className="input-group">
+        <div className="composer-toolbar">
+          <div className="composer-repo-field">
+            <label className="sr-only" htmlFor="repoPath">Local repository path</label>
+            <span className="composer-toolbar-icon" aria-hidden="true">⌂</span>
             <input
               id="repoPath"
               type="text"
               value={repo}
               onChange={(e) => setRepo(e.target.value)}
-              placeholder="e.g. D:\dev\my-project"
+              placeholder="Repository path"
+              aria-describedby="repoPathHelp"
               required
             />
           </div>
-          <small className="muted-text">
-            This path is stored locally and is not sent to the cloud.
-          </small>
-        </div>
-
-        <div className="form-group">
-          <label htmlFor="taskPrompt">Task Prompt</label>
-          <textarea
-            id="taskPrompt"
-            rows={4}
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="e.g. Add query parameter pagination to the list users endpoint with unit tests"
-            required
-          />
-        </div>
-
-        <div className="form-row">
-          <div className="form-group flex-1">
-            <label htmlFor="agentKind">Agent</label>
-            <select
-              id="agentKind"
-              value={agent}
-              onChange={(e) => handleAgentChange(e.target.value as AgentKind)}
-            >
-              <option value="claude-code">Claude Code (Headless)</option>
-              <option value="codex">Codex (CLI)</option>
-              <option value="codehands">Code Hands Engine (Local)</option>
+          <div className="composer-select-field">
+            <label className="sr-only" htmlFor="agentKind">Agent</label>
+            <select id="agentKind" value={agent} onChange={(e) => handleAgentChange(e.target.value as AgentKind)}>
+              <option value="claude-code">Claude Code</option>
+              <option value="codex" disabled>Codex CLI (coming soon)</option>
+              <option value="codehands" disabled>Code Hands (coming soon)</option>
             </select>
           </div>
-
-          <div className="form-group flex-1">
-            <label htmlFor="primaryModel">Primary Model</label>
-            <select
-              id="primaryModel"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-            >
-              {(AVAILABLE_MODELS[agent] || []).map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
+          <div className="composer-select-field model-select-field">
+            <label className="sr-only" htmlFor="primaryModel">Primary model</label>
+            <select id="primaryModel" value={model} onChange={(e) => setModel(e.target.value)}>
+              {(AVAILABLE_MODELS[agent] || []).map((availableModel) => (
+                <option key={availableModel} value={availableModel}>{availableModel}</option>
               ))}
             </select>
           </div>
+          <button type="submit" className="btn-primary composer-submit" disabled={!connected || !runnerReady || !prompt.trim() || !repo.trim()}>
+            Add task <span aria-hidden="true">↑</span>
+          </button>
         </div>
+        <small className="composer-repo-help" id="repoPathHelp">Repository paths remain on this device.</small>
 
-        <div className="form-group">
-          <label className="checkbox-label">
-            <input
-              type="checkbox"
-              checked={customizePhases}
-              onChange={(e) => setCustomizePhases(e.target.checked)}
-            />
-            <span>Configure model per phase (SIG Models architecture)</span>
-          </label>
-        </div>
-
-        {customizePhases && (
+        <details className="advanced-settings" onToggle={(event) => setCustomizePhases(event.currentTarget.open)}>
+          <summary><span>Advanced model routing</span><small>Set a different model for each phase</small></summary>
           <div className="phase-models-panel">
-            <h4>Models Per Phase</h4>
             <div className="phase-grid">
-              {(["analyze", "plan", "implement", "test", "review"] as const).map(
-                (phase) => (
-                  <div key={phase} className="phase-item">
-                    <label>{phase.toUpperCase()}</label>
-                    <select
-                      value={phaseModels[phase]}
-                      onChange={(e) =>
-                        setPhaseModels({
-                          ...phaseModels,
-                          [phase]: e.target.value,
-                        })
-                      }
-                    >
-                      {(AVAILABLE_MODELS[agent] || []).map((availableModel) => (
-                        <option key={availableModel} value={availableModel}>{availableModel}</option>
-                      ))}
-                    </select>
-                  </div>
-                )
-              )}
+              {(["analyze", "plan", "implement", "test", "review"] as const).map((phase) => (
+                <div key={phase} className="phase-item">
+                  <label htmlFor={`phase-${phase}`}>{phase}</label>
+                  <select
+                    id={`phase-${phase}`}
+                    value={phaseModels[phase]}
+                    onChange={(e) => setPhaseModels({ ...phaseModels, [phase]: e.target.value })}
+                  >
+                    {(AVAILABLE_MODELS[agent] || []).map((availableModel) => (
+                      <option key={availableModel} value={availableModel}>{availableModel}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
             </div>
           </div>
-        )}
+        </details>
 
-        {error && <div className="alert-error">{error}</div>}
-
-        <div className="form-actions">
-          <button type="button" className="btn-secondary" onClick={onCancel}>
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={!connected || !prompt.trim()}
-          >
-            Start Task
-          </button>
-        </div>
+        {error && <div className="alert-error" role="alert">{error}</div>}
       </form>
-      </div>
     </section>
   );
 }

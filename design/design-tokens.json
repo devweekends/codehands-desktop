@@ -1,0 +1,37 @@
+{
+  "source": "src/App.css",
+  "note": "Reference snapshot only; not imported by the application.",
+  "colors": {
+    "background": "#101116",
+    "surface": "#17191f",
+    "surfaceRaised": "#1d2027",
+    "surfaceHover": "#232630",
+    "sidebar": "#14151b",
+    "input": "#111319",
+    "border": "#2a2d37",
+    "text": "#e8eaf0",
+    "muted": "#8d929f",
+    "subtle": "#626775",
+    "accent": "#9c8cff",
+    "accentStrong": "#846df3",
+    "primaryAction": "#b6a8ff",
+    "brandGradientStart": "#a18eff",
+    "brandGradientEnd": "#6952d8",
+    "blue": "#70a7ff",
+    "green": "#63d4a0",
+    "amber": "#f0bc65",
+    "red": "#f07d82"
+  },
+  "typography": {
+    "ui": "DM Sans, Segoe UI, sans-serif",
+    "technical": "JetBrains Mono, Consolas, monospace"
+  },
+  "shape": {
+    "baseRadius": "12px"
+  },
+  "breakpoints": {
+    "compactTables": "1050px",
+    "mobileNavigation": "760px",
+    "smallPhone": "480px"
+  }
+}

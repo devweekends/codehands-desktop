@@ -4,7 +4,7 @@ import type { CloudAuth, AuthResult, CloudDevice } from "@codehands/contracts";
 
 // Vite exposes env vars prefixed with VITE_ at build time.
 // In dev: set VITE_CLOUD_URL=http://localhost:3000 in desktop/.env
-// Falls back to mock server on 4000 if not set.
+// Defaults to the real local API. Set VITE_CLOUD_URL to use another backend.
 const DEFAULT_CLOUD_URL =
   (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_CLOUD_URL) ||
   "http://localhost:3000";
@@ -28,30 +28,34 @@ export class CloudApiClient implements CloudAuth {
     this.token = token;
   }
 
+  getBaseUrl() {
+    return this.baseUrl;
+  }
+
   // ── Auth ────────────────────────────────────────────────────────────────
 
-  async signUp(input: { githubCode: string; deviceName: string }): Promise<AuthResult> {
-    const res = await fetch(`${this.baseUrl}/auth/signup`, {
+  async signUp(input: { name: string; email: string; password: string }): Promise<AuthResult> {
+    const res = await this.authFetch("/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error((body as any).error ?? `Sign up failed: ${res.statusText}`);
+      throw new Error((body as any).error ?? (body as any).message ?? `Sign up failed: ${res.statusText}`);
     }
     return (await res.json()) as AuthResult;
   }
 
-  async logIn(input: { githubCode: string; deviceName: string }): Promise<AuthResult> {
-    const res = await fetch(`${this.baseUrl}/auth/login`, {
+  async logIn(input: { email: string; password: string }): Promise<AuthResult> {
+    const res = await this.authFetch("/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      throw new Error((body as any).error ?? `Log in failed: ${res.statusText}`);
+      throw new Error((body as any).error ?? (body as any).message ?? `Log in failed: ${res.statusText}`);
     }
     return (await res.json()) as AuthResult;
   }
@@ -102,13 +106,24 @@ export class CloudApiClient implements CloudAuth {
 
   // ── Health ───────────────────────────────────────────────────────────────
 
-  async checkHealth(): Promise<{ ok: boolean; db_time?: string }> {
+  async checkHealth(): Promise<{ ok: boolean; db_time?: string; error?: string }> {
     try {
       const res = await fetch(`${this.baseUrl}/health`);
-      if (!res.ok) return { ok: false };
-      return (await res.json()) as { ok: boolean; db_time?: string };
+      const body = await res.json().catch(() => ({})) as { ok?: boolean; db_time?: string; error?: string; message?: string };
+      if (!res.ok) return { ok: false, error: body.error ?? body.message ?? `API returned ${res.status}` };
+      return { ...body, ok: body.ok === true };
     } catch {
-      return { ok: false };
+      return { ok: false, error: `Cannot connect to ${this.baseUrl}` };
+    }
+  }
+
+  private async authFetch(path: string, options: RequestInit): Promise<Response> {
+    try {
+      return await fetch(`${this.baseUrl}${path}`, options);
+    } catch {
+      throw new Error(
+        `Can't connect to the sign-in server at ${this.baseUrl}. Start the Code Hands backend and check its CORS settings, then try again.`
+      );
     }
   }
 
