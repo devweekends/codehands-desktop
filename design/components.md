@@ -1,39 +1,34 @@
-# Components and interaction patterns
+# Components
 
-These patterns describe the current application in `src/App.css` and its React components. Reuse existing classes and component behavior where possible; this document is not a request to rebuild the CSS architecture.
+The CodeHands AI component system provides cohesive, reusable interactive primitives across all engineering modules.
 
-## Actions
+## Primitives
 
-- **Primary:** pale violet fill, dark text, medium/semibold label. Use for the main action in a region.
-- **Secondary:** dark filled surface with a neutral border. Use for alternate or reversible actions.
-- **Danger:** red-tinted surface and label. Use only for consequential or destructive actions; make the effect explicit.
-- **Success:** green-tinted treatment. Reserve for a successful or ready state.
-- **Text/link:** transparent background with violet text; use for lightweight navigation or secondary inline actions.
+### 1. Buttons & Action Bars
+- **Primary:** Violet background (`#7857FF`), white text (`#F4F5FA`), subtle hover lift and focus glow.
+- **Secondary:** Surface background (`#141827`), border (`#272D40`), hover state (`#1A2031`).
+- **Danger / Stop:** Red tone (`#FF647C`), used for aborting active agent runs or rejecting changes.
+- **Icon Buttons:** Compact, 28x28px or 32x32px square buttons for view switching, expand, and filters.
 
-Buttons should have visible hover and keyboard-focus states. Disabled controls must look and behave disabled.
+### 2. Navigation & Sidebar
+- **Section Headers:** Uppercase tracking (`0.06em`), muted text (`#687087`).
+- **Active Route Items:** Highlighted background (`rgba(120, 87, 255, 0.1)`), left accent bar (`#7857FF`), white text.
+- **Badges:** Compact status pills (e.g., pending tasks, warnings, active runs).
 
-## Cards and panels
+### 3. Task & Project Cards
+- **GSD / Active Badge:** Violet pill with glowing accent.
+- **Progress Trackers:** Gradient bar (`#7857FF` to `#27B7F5`) showing completed phases / tasks.
+- **Metadata Footers:** Branch name (`JetBrains Mono`), last updated timestamp, quick actions.
 
-Use a dark surface, subtle neutral border, and approximately 8–12px corner radius. Keep related card content grouped, with a clear title, supporting text, and actions. Metric cards use a small colored icon tile; color should reinforce, not replace, the metric label.
+### 4. Diff Viewer (Unified & Split)
+- **Deleted Lines:** Background `rgba(255, 100, 124, 0.15)`, red indicator, line numbers.
+- **Added Lines:** Background `rgba(32, 201, 151, 0.15)`, green indicator, line numbers.
+- **Inline Comments:** Dedicated discussion cards with file and line range references, feedback tags, and "Export for Agent" actions.
 
-## Status and feedback
+### 5. Terminal & Execution Logs
+- **Terminal Canvas:** Obsidian background (`#0B0D16`), monospace font (`JetBrains Mono`), color-coded levels (`INFO`, `WARN`, `ERROR`, `SUCCESS`).
+- **Docked Drawer:** Collapsible bottom tray with quick terminal access and daemon health.
 
-Status badges use compact text, a tinted background, and a border. The current task statuses distinguish running (blue), awaiting approval (amber), approved (green), and rejected/failed (red); queued/stopped are neutral-violet. Always show a readable status label alongside color.
-
-Notices, empty states, provider status, and daemon connectivity should explain what happened or what the person can do. Do not describe a local queue connection as active agent execution.
-
-## Forms
-
-Labels sit above controls. Inputs use a dark inset surface, neutral border, and a violet focus treatment. Error, warning, and success messages use separate semantic treatments. Keep field help close to the relevant field and preserve clear submit/cancel actions.
-
-The new-task landing view uses a large natural-language prompt as the primary control, with repository, agent, model, and submit controls grouped in a compact toolbar. Keep per-phase model routing in a secondary disclosure. The composer must state clearly that the current local daemon queues and tracks tasks but does not execute them.
-
-The sidebar lists real task sessions by title and readable status; the selected session has a distinct surface and a semantic current-page state. Keep task filters, project/configuration navigation, daemon connectivity, and account controls available alongside that list.
-
-## Data and review
-
-Task lists prioritize task identity and status, then agent/model and secondary metrics. The change-review panel distinguishes added lines (green), removed lines (red), and hunk metadata (blue). Preserve file paths, line context, and explicit approve/reject actions in review flows.
-
-## Interaction states
-
-For interactive components, account for default, hover, focus-visible, active/selected, disabled, loading, and error states where relevant. Use semantic HTML and accessible names; do not rely on hover alone to reveal an action.
+### 6. Workflow Nodes & Fallback Chains
+- **Node Cards:** Surface (`#141827`) with state indicators (Analyze, Plan, Implement, Test, Review).
+- **Fallback Connectors:** Visual flow arrows linking primary models (e.g. GPT-4o -> Claude 3.5 -> Llama 3.1 -> Mistral).

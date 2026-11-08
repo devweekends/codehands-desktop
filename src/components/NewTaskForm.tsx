@@ -1,11 +1,9 @@
 import { useState } from "react";
 import type { AgentKind } from "@codehands/contracts";
+import { FolderIcon, CpuIcon, WorkflowIcon, ArrowRightIcon, AlertTriangleIcon } from "./Icons";
 
 interface NewTaskFormProps {
   connected: boolean;
-  runnerReady: boolean;
-  runnerReason?: string | null;
-  runnerMode?: "fake" | "real";
   initialRepo?: string;
   onStart: (taskData: {
     repo: string;
@@ -24,43 +22,25 @@ interface NewTaskFormProps {
 }
 
 const AVAILABLE_MODELS: Record<string, string[]> = {
-  "claude-code": ["sonnet", "haiku", "opus"],
-  codex: ["gpt-5.5", "gpt-5-mini", "codex-1"],
+  "claude-code": ["claude-3-5-sonnet", "claude-3-5-haiku", "claude-3-opus"],
+  codex: ["gpt-4o", "gpt-4o-mini", "o1-preview"],
   codehands: ["claude-3-5-sonnet", "qwen-2.5-coder", "gpt-4o-mini"],
 };
 
 const DEFAULT_PHASE_MODELS = {
-  analyze: "haiku",
-  plan: "opus",
-  implement: "sonnet",
-  test: "haiku",
-  review: "sonnet",
+  analyze: "claude-3-5-sonnet",
+  plan: "claude-3-5-sonnet",
+  implement: "qwen-2.5-coder",
+  test: "gpt-4o-mini",
+  review: "claude-3-5-sonnet",
 };
 
-const PHASE_DEFAULTS: Record<AgentKind, typeof DEFAULT_PHASE_MODELS> = {
-  "claude-code": DEFAULT_PHASE_MODELS,
-  codex: {
-    analyze: "gpt-5-mini",
-    plan: "gpt-5.5",
-    implement: "gpt-5.5",
-    test: "gpt-5-mini",
-    review: "gpt-5.5",
-  },
-  codehands: {
-    analyze: "qwen-2.5-coder",
-    plan: "claude-3-5-sonnet",
-    implement: "qwen-2.5-coder",
-    test: "qwen-2.5-coder",
-    review: "claude-3-5-sonnet",
-  },
-};
-
-export function NewTaskForm({ connected, runnerReady, runnerReason, runnerMode = "fake", initialRepo, onStart, onCancel }: NewTaskFormProps) {
-  const [repo, setRepo] = useState(initialRepo || "d:\\dev\\sample-repo");
+export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTaskFormProps) {
+  const [repo, setRepo] = useState(initialRepo || "D:\\dev\\sample-repo");
   const [prompt, setPrompt] = useState("");
-  const [agent, setAgent] = useState<AgentKind>("claude-code");
-  const [model, setModel] = useState("sonnet");
-  const [customizePhases, setCustomizePhases] = useState(false);
+  const [agent, setAgent] = useState<AgentKind>("codehands");
+  const [model, setModel] = useState("claude-3-5-sonnet");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [phaseModels, setPhaseModels] = useState(DEFAULT_PHASE_MODELS);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,7 +48,6 @@ export function NewTaskForm({ connected, runnerReady, runnerReason, runnerMode =
     setAgent(newAgent);
     const available = AVAILABLE_MODELS[newAgent] || [];
     if (available.length > 0) setModel(available[0]);
-    setPhaseModels(PHASE_DEFAULTS[newAgent]);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -76,7 +55,7 @@ export function NewTaskForm({ connected, runnerReady, runnerReason, runnerMode =
     setError(null);
 
     if (!repo.trim()) {
-      setError("Please specify a target repository folder.");
+      setError("Please specify a target local repository path.");
       return;
     }
     if (!prompt.trim()) {
@@ -84,11 +63,7 @@ export function NewTaskForm({ connected, runnerReady, runnerReason, runnerMode =
       return;
     }
     if (!connected) {
-      setError("Cannot write task: daemon is not connected.");
-      return;
-    }
-    if (!runnerReady) {
-      setError(runnerReason || "The local runner is not ready. Restart Code Hands and check the daemon.");
+      setError("Cannot dispatch task: local daemon is not connected. Ensure daemon is running on 127.0.0.1:8788.");
       return;
     }
 
@@ -97,99 +72,157 @@ export function NewTaskForm({ connected, runnerReady, runnerReason, runnerMode =
       prompt: prompt.trim(),
       agent,
       model,
-      phaseModels: customizePhases ? phaseModels : undefined,
+      phaseModels: showAdvanced ? phaseModels : undefined,
     });
 
-    if (!success) setError("Failed to dispatch task to local daemon.");
+    if (!success) {
+      setError("Failed to dispatch task to local daemon. Please verify the connection.");
+    }
   };
 
   return (
-    <section className="form-container composer-page" aria-labelledby="composer-title">
-      <button type="button" className="composer-back-link" onClick={onCancel}>← Browse sessions</button>
-      <header className="composer-heading">
-        <div className="eyebrow">CODE HANDS · LOCAL WORKSPACE</div>
-        <h1 id="composer-title">What would you like to work on?</h1>
-        <p>Describe the change in your own words. Your task and repository path stay in this local workspace.</p>
-      </header>
-
-      <div className="runner-notice composer-runner-notice" role="note">
-        <span aria-hidden="true">ⓘ</span>
-        <p><strong>{runnerReady ? (runnerMode === "fake" ? "Demo runner ready." : "Claude runner ready.") : "Daemon connected, runner unavailable."}</strong> {runnerReady ? (runnerMode === "fake" ? "Using pre-generated local events. No Claude subscription is required." : "Claude Code will work in a separate Git worktree; review the diff before approving it.") : runnerReason || "Start the daemon or check runner configuration."}</p>
-      </div>
-
-      <form className="task-composer" onSubmit={handleSubmit}>
-        <label className="sr-only" htmlFor="taskPrompt">Describe the coding task</label>
-        <textarea
-          id="taskPrompt"
-          className="composer-prompt"
-          rows={6}
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder={'Ask Code Hands to make a change…\n\nFor example: Add pagination to the users endpoint and cover the new behavior with tests.'}
-          required
-        />
-
-        <div className="composer-toolbar">
-          <div className="composer-repo-field">
-            <label className="sr-only" htmlFor="repoPath">Local repository path</label>
-            <span className="composer-toolbar-icon" aria-hidden="true">⌂</span>
-            <input
-              id="repoPath"
-              type="text"
-              value={repo}
-              onChange={(e) => setRepo(e.target.value)}
-              placeholder="Repository path"
-              aria-describedby="repoPathHelp"
-              required
-            />
-          </div>
-          <div className="composer-select-field">
-            <label className="sr-only" htmlFor="agentKind">Agent</label>
-            <select id="agentKind" value={agent} onChange={(e) => handleAgentChange(e.target.value as AgentKind)}>
-              <option value="claude-code">Claude Code</option>
-              <option value="codex" disabled>Codex CLI (coming soon)</option>
-              <option value="codehands" disabled>Code Hands (coming soon)</option>
-            </select>
-          </div>
-          <div className="composer-select-field model-select-field">
-            <label className="sr-only" htmlFor="primaryModel">Primary model</label>
-            <select id="primaryModel" value={model} onChange={(e) => setModel(e.target.value)}>
-              {(AVAILABLE_MODELS[agent] || []).map((availableModel) => (
-                <option key={availableModel} value={availableModel}>{availableModel}</option>
-              ))}
-            </select>
-          </div>
-          <button type="submit" className="btn-primary composer-submit" disabled={!connected || !runnerReady || !prompt.trim() || !repo.trim()}>
-            Add task <span aria-hidden="true">↑</span>
+    <div className="new-task-page-wrapper">
+      <div className="new-task-container">
+        {/* Top Header */}
+        <div className="new-task-header">
+          <button type="button" className="btn-back-link" onClick={onCancel}>
+            ← Back to workspace
           </button>
+          <div className="header-title-block">
+            <h1>Create New Task</h1>
+            <p>Describe your engineering task. CodeHands will analyze, plan, and stage changes in your local workspace.</p>
+          </div>
         </div>
-        <small className="composer-repo-help" id="repoPathHelp">Repository paths remain on this device.</small>
 
-        <details className="advanced-settings" onToggle={(event) => setCustomizePhases(event.currentTarget.open)}>
-          <summary><span>Advanced model routing</span><small>Set a different model for each phase</small></summary>
-          <div className="phase-models-panel">
-            <div className="phase-grid">
-              {(["analyze", "plan", "implement", "test", "review"] as const).map((phase) => (
-                <div key={phase} className="phase-item">
-                  <label htmlFor={`phase-${phase}`}>{phase}</label>
-                  <select
-                    id={`phase-${phase}`}
-                    value={phaseModels[phase]}
-                    onChange={(e) => setPhaseModels({ ...phaseModels, [phase]: e.target.value })}
-                  >
-                    {(AVAILABLE_MODELS[agent] || []).map((availableModel) => (
-                      <option key={availableModel} value={availableModel}>{availableModel}</option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+        {/* Notice alert */}
+        {!connected && (
+          <div className="new-task-alert offline">
+            <AlertTriangleIcon size={16} color="#FF647C" />
+            <div>
+              <strong>Local Daemon Offline:</strong> Tasks require the local daemon running on <code>127.0.0.1:8788</code>. Start the local daemon or run bridge script.
             </div>
           </div>
-        </details>
+        )}
 
-        {error && <div className="alert-error" role="alert">{error}</div>}
-      </form>
-    </section>
+        {error && (
+          <div className="new-task-alert error">
+            <AlertTriangleIcon size={16} color="#FF647C" />
+            <div>{error}</div>
+          </div>
+        )}
+
+        {/* Main Form */}
+        <form className="new-task-form" onSubmit={handleSubmit}>
+          {/* Prompt Specification */}
+          <div className="composer-card">
+            <div className="composer-card-header">
+              <label htmlFor="task-prompt">Task Specification & Prompt</label>
+              <span className="helper-tag">Markdown & context supported</span>
+            </div>
+            <textarea
+              id="task-prompt"
+              className="prompt-textarea"
+              rows={5}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Describe what you want the autonomous agent to build or fix...&#10;&#10;e.g. Add JWT authentication middleware to the API endpoints and write unit tests covering token refresh and expiration."
+              required
+              autoFocus
+            />
+
+            {/* Target Repository Path */}
+            <div className="repo-path-row">
+              <div className="repo-input-wrap">
+                <span className="repo-icon"><FolderIcon size={15} color="#9FA4B4" /></span>
+                <input
+                  type="text"
+                  value={repo}
+                  onChange={(e) => setRepo(e.target.value)}
+                  placeholder="Target Local Repository Path (e.g. D:\dev\my-app)"
+                  required
+                />
+              </div>
+              <span className="repo-badge">Local Git Directory</span>
+            </div>
+          </div>
+
+          {/* Configuration Grid: Agent & Model */}
+          <div className="config-grid-cards">
+            <div className="config-card">
+              <div className="config-card-header">
+                <WorkflowIcon size={16} color="#27B7F5" />
+                <label>Autonomous Agent Engine</label>
+              </div>
+              <select value={agent} onChange={(e) => handleAgentChange(e.target.value as AgentKind)}>
+                <option value="codehands">CodeHands Native Orchestrator (Multi-Phase)</option>
+                <option value="claude-code">Claude Code CLI</option>
+                <option value="codex">Codex CLI</option>
+              </select>
+              <span className="config-note">Multi-phase orchestration with automatic retry and validation.</span>
+            </div>
+
+            <div className="config-card">
+              <div className="config-card-header">
+                <CpuIcon size={16} color="#27B7F5" />
+                <label>Primary AI Model</label>
+              </div>
+              <select value={model} onChange={(e) => setModel(e.target.value)}>
+                {(AVAILABLE_MODELS[agent] || []).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <span className="config-note">Dispatched for code synthesis and AST modifications.</span>
+            </div>
+          </div>
+
+          {/* Advanced Model-Per-Phase Toggle */}
+          <div className="advanced-routing-accordion">
+            <button
+              type="button"
+              className="accordion-toggle-btn"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+            >
+              <span>{showAdvanced ? "▾" : "▸"} Advanced Multi-Phase Model Routing</span>
+              <span className="badge-optional">{showAdvanced ? "Active" : "Configure per phase"}</span>
+            </button>
+
+            {showAdvanced && (
+              <div className="phase-routing-grid">
+                {(["analyze", "plan", "implement", "test", "review"] as const).map((phase) => (
+                  <div key={phase} className="phase-config-item">
+                    <span className="phase-item-label">{phase.toUpperCase()}</span>
+                    <select
+                      value={phaseModels[phase]}
+                      onChange={(e) => setPhaseModels({ ...phaseModels, [phase]: e.target.value })}
+                    >
+                      <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                      <option value="qwen-2.5-coder">Qwen 2.5 Coder</option>
+                      <option value="gpt-4o">GPT-4o</option>
+                      <option value="gpt-4o-mini">GPT-4o Mini</option>
+                      <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
+                    </select>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Form Actions */}
+          <div className="composer-actions-bar">
+            <button type="button" className="btn-cancel" onClick={onCancel}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-submit-task"
+              disabled={!prompt.trim() || !repo.trim()}
+            >
+              <span>Start Autonomous Orchestration</span>
+              <ArrowRightIcon size={14} color="#ffffff" />
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
-

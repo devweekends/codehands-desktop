@@ -1,29 +1,27 @@
 # Typography
 
-## Font families
+CodeHands AI uses a dual-type system designed for clarity, data density, and technical precision.
 
-- **UI:** `DM Sans`, with `Segoe UI`, then system sans-serif fallbacks. The root stack is declared in `src/App.css`; ensure the font is actually available/loaded before relying on it across platforms.
-- **Technical metadata:** `JetBrains Mono`, with `Consolas` and monospace fallbacks. Used for IDs, counts, paths, timestamps, table labels, and code/diff content.
-- **Fallback:** use the platform sans-serif stack for general interface text and monospace for code or tabular technical values.
+## Font Families
 
-## Hierarchy
+- **Primary UI:** `Inter`, with fallbacks to system sans-serif (`-apple-system`, `BlinkMacSystemFont`, `Segoe UI`, `Roboto`, `sans-serif`). Used for all headings, body text, buttons, modals, and navigation controls.
+- **Technical & Code:** `JetBrains Mono`, with fallbacks to `Consolas`, `Menlo`, `monospace`. Used for code snippets, diffs, terminal outputs, execution logs, IDs, Git branches, tokens, and technical telemetry.
 
-The current interface is compact and information-dense. The approximate sizes below summarize existing patterns; match the nearest component style rather than adding a new global scale casually.
+## Hierarchy & Scales
 
-| Role | Current range / example |
-| --- | --- |
-| Page title | 24–32px, weight 600, tight tracking |
-| Section / card title | 12–20px, weight 600 |
-| Body and form copy | 10–12px, regular |
-| Labels, metadata, badges | 8–10px; monospace for technical metadata |
-| Metrics | 22px, semibold monospace |
-| Diff/code | 9px with approximately 1.65 line-height |
+| Role | Font Family | Size | Weight | Line Height | Tracking |
+| --- | --- | --- | --- | --- | --- |
+| Hero / Page Title | Inter | 22–26px | 600 / SemiBold | 1.25 | -0.02em |
+| Section Header | Inter | 16–18px | 600 / SemiBold | 1.3 | -0.01em |
+| Card Title / Subhead | Inter | 13–14px | 600 / SemiBold | 1.4 | 0 |
+| Body Text | Inter | 12–13px | 400 / Regular | 1.5 | 0 |
+| Small / Captions | Inter | 11–12px | 500 / Medium | 1.4 | 0.01em |
+| Eyebrows / Section Labels | Inter | 10–11px | 600 / SemiBold | 1.2 | 0.06em (Uppercase) |
+| Code / Diff / Logs | JetBrains Mono | 11–12px | 400 / 500 | 1.6 | 0 |
+| Numbers & Badges | JetBrains Mono | 11–12px | 500 / SemiBold | 1.2 | 0 |
 
-## Usage
+## Rules
 
-- Use DM Sans for headings, body copy, navigation, controls, and prose.
-- Use JetBrains Mono for values that benefit from alignment or a technical character; avoid setting whole paragraphs in monospace.
-- Use weight and color before adding more font sizes to establish hierarchy.
-- Keep line-height comfortable for explanatory copy and dense data readable at desktop and narrow widths.
-- Use sentence case for labels and headings; uppercase is reserved for small eyebrow labels and table metadata.
-- Avoid relying on font weight alone to communicate status or importance.
+- Always render code changes, diff lines, terminal messages, and commit SHAs in `JetBrains Mono`.
+- Headings and action labels utilize `Inter` with tight letter spacing for a modern, crisp feel.
+- Maintain consistent line height in terminal and diff views to prevent jitter when scrolling through large outputs.

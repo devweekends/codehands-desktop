@@ -1,37 +1,38 @@
-# Layout and spacing
+# Layout & Spacing
 
-## App structure
+## Layout System
 
-The desktop shell is a persistent left navigation sidebar next to a flexible main area. The sidebar contains workspace filters, selectable session rows, configuration navigation, and daemon/account information. The top bar provides page context, while page content is centered and width-limited. Below 760px the sidebar stacks above the main area and session rows scroll horizontally.
+CodeHands AI uses an integrated multi-panel desktop layout architecture:
 
-## Current layout references
+### 1. Application Shell
+- **Left Sidebar:** 240px default (collapsible to 64px icon-only rail). Houses Workspace, Engineering, Management, and Recents navigation.
+- **Top Navigation Bar:** 52px height. Breadcrumbs, global search, command palette shortcut (`Ctrl+K`), notifications, daemon health pill, theme toggle.
+- **Main View Area:** Dynamic fluid workspace with responsive container constraints.
+- **Bottom Terminal Dock:** 40px collapsed bar expanding into a full terminal drawer with live daemon logs and interactive controls.
 
-These are present in `src/App.css`; they are reference points, not a mandate to force every component to the same dimensions.
+### 2. Multi-Panel Task Workspace
+- **Left Panel (260px):** Task listing, live statuses, "+ New Task" trigger, and filters.
+- **Center Panel (Flexible 1fr):** Prompt instructions, agent thinking state, task step checklist, and interactive input bar.
+- **Right Panel (Flexible 1.2fr):** 5-Tab engineering execution workspace:
+  1. **Execution:** Workflow phase timeline, model routing, progress bars, pause/stop/approval actions.
+  2. **Changes:** 3-column Git change inspector, Staged/Unstaged file manager, Split/Unified diff viewer, inline review comment stream.
+  3. **Logs:** Streaming terminal logs with level filtering (`INFO`, `DEBUG`, `WARN`, `ERROR`), search, and auto-scroll.
+  4. **Artifacts:** Generated patch files, test results, markdown reports, and download/preview actions.
+  5. **Timeline:** Chronological event stream covering task lifecycle from ingestion to review.
 
-| Pattern | Current value |
-| --- | --- |
-| Sidebar width | 252px; 228px below 1050px; full-width stacked navigation below 760px |
-| Top bar height | 60px; 52px below 760px |
-| Main page max width | 1320px for dashboard/detail/workspace pages |
-| Main page padding | 35px 40px; reduced at tablet/mobile breakpoints |
-| Main content max width | 1480px |
-| Card radius | Commonly 8–12px |
-| Control radius | Commonly 5–9px |
-| Base card border | 1px solid a dark neutral border |
+## Spacing Tokens
 
-## Spacing approach
+- `space-1`: 4px
+- `space-2`: 8px
+- `space-3`: 12px
+- `space-4`: 16px
+- `space-5`: 20px
+- `space-6`: 24px
+- `space-8`: 32px
 
-The existing CSS uses compact spacing values, commonly around 4, 7–14, 17–20, and 24–40px, with CSS declarations often tuned per component. Reuse nearby spacing and preserve visual grouping rather than introducing an unrelated scale. Keep gaps consistent within repeated grids, forms, and toolbars.
+## Border Radius
 
-## Responsive behavior
-
-- At 1050px, reduce the sidebar and page gutters and simplify less-critical table columns.
-- At 760px, stack the sidebar above the main area, make session rows horizontally scrollable, stack detail content, and collapse multi-column forms and grids.
-- At 480px, stack page headings and hide secondary metadata where necessary.
-- Preserve task identity, status, primary actions, and review affordances at all widths.
-- Keep the new-task prompt visually primary; allow its repository/agent/model toolbar to wrap at narrow widths.
-- Avoid horizontal overflow; allow dense data regions such as code diffs to scroll within their own container.
-
-## Surfaces and density
-
-Use subtle surface and border separation rather than heavy shadows. Group related information inside a panel and keep controls visually distinct from static content. Compact metadata may be dense, but primary task titles, warnings, and decision controls should remain easy to find.
+- Small (badges, pills, tags): 4px - 6px
+- Standard (buttons, inputs, dropdowns): 8px - 10px
+- Cards & Modals: 12px
+- Full Pill: 9999px

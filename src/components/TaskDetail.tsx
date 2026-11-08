@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { CommandKind, Session } from "@codehands/contracts";
 
 export interface DesktopSession extends Session {
@@ -28,6 +29,8 @@ interface TaskDetailProps {
   onCommand: (kind: CommandKind) => boolean;
   onBack: () => void;
 }
+
+type WorkspaceTab = "execution" | "changes" | "logs" | "artifacts" | "timeline";
 
 const EVENT_LABELS: Record<string, string> = {
   "task.claimed": "Task accepted by the local daemon",
@@ -71,6 +74,7 @@ export function TaskDetail({ session, events, onCommand, onBack }: TaskDetailPro
   const totalRemoved = files.reduce((total, file) => total + file.patch.split("\n").filter((line) => line.startsWith("-") && !line.startsWith("---")).length, 0);
   const phases = ["Analyze", "Plan", "Implement", "Test", "Review"];
   const phaseEvents = new Set(events.map((event) => event.eventType));
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("execution");
 
   return (
     <section className="detail-page">
@@ -91,7 +95,29 @@ export function TaskDetail({ session, events, onCommand, onBack }: TaskDetailPro
         <div><span>BRANCH</span><strong>{session.branch || "Not created"}</strong></div>
       </div>
 
-      <div className="detail-grid">
+      <nav className="workspace-tabs" aria-label="Task workspace views" role="tablist">
+        {([
+          ["execution", "Execution"],
+          ["changes", "Changes"],
+          ["logs", "Logs"],
+          ["artifacts", "Artifacts"],
+          ["timeline", "Timeline"],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            className={activeTab === id ? "workspace-tab active" : "workspace-tab"}
+            onClick={() => setActiveTab(id)}
+            role="tab"
+            aria-selected={activeTab === id}
+          >
+            {label}
+            {id === "logs" && events.length > 0 && <span className="workspace-tab-count">{events.length}</span>}
+            {id === "changes" && files.length > 0 && <span className="workspace-tab-count">{files.length}</span>}
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === "execution" && <div className="detail-grid">
         <aside className="progress-column">
           <div className="panel-heading"><div><h2>Run progress</h2><p>Events reported by the local daemon</p></div><span className="event-count">{events.length}</span></div>
           <div className="phase-list">
@@ -119,9 +145,30 @@ export function TaskDetail({ session, events, onCommand, onBack }: TaskDetailPro
           {files.length ? <div className="review-files">{files.map((file) => <DiffBlock key={file.path} file={file} />)}</div> : <div className="diff-empty"><div className="diff-empty-icon">⌘</div><h3>No diff attached yet</h3><p>The daemon will attach the patch here when an agent runner is connected and reports changes.</p></div>}
           {session.status === "awaiting_approval" && <div className="approval-bar"><div><strong>Review decision</strong><p>These controls record your decision with the daemon. The current daemon build does not commit or delete worktrees.</p></div><div className="approval-buttons"><button className="btn-secondary reject-button" onClick={() => onCommand("reject")}>Reject task</button><button className="btn-primary" onClick={() => onCommand("approve")}>Record approval</button></div></div>}
         </div>
-      </div>
+      </div>}
+
+      {activeTab === "changes" && <section className="workspace-tab-panel" role="tabpanel">
+        <div className="diff-toolbar"><div><h2>Changes</h2><p>{files.length} {files.length === 1 ? "file" : "files"} changed <span className="stat-added">+{totalAdded}</span> <span className="stat-removed">−{totalRemoved}</span></p></div><div className="diff-legend"><span><i className="legend-add" /> Added</span><span><i className="legend-remove" /> Removed</span></div></div>
+        {files.length ? <div className="review-files">{files.map((file) => <DiffBlock key={file.path} file={file} />)}</div> : <EmptyWorkspace title="No changes attached" description="The daemon will attach a patch here when an agent runner reports changes." />}
+      </section>}
+
+      {activeTab === "logs" && <section className="workspace-tab-panel log-panel" role="tabpanel">
+        <div className="panel-heading"><div><h2>Execution logs</h2><p>Event records reported by the local daemon</p></div><span className="event-count">{events.length}</span></div>
+        {events.length ? <div className="log-list">{events.map((event) => <div className="log-row" key={`${event.sessionId}-${event.id}`}><time>{new Date(event.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time><span className="log-level">INFO</span><strong>{eventName(event)}</strong><span>{event.payload.reason || event.payload.result || event.payload.summary || "Event received"}</span></div>)}</div> : <EmptyWorkspace title="No logs yet" description="Live execution records will appear here when the daemon emits events." />}
+      </section>}
+
+      {activeTab === "artifacts" && <section className="workspace-tab-panel" role="tabpanel"><EmptyWorkspace title="No artifacts available" description="This local session does not expose an artifact store yet. Generated files attached to the task are available in Changes." /></section>}
+
+      {activeTab === "timeline" && <section className="workspace-tab-panel" role="tabpanel">
+        <div className="panel-heading"><div><h2>Task timeline</h2><p>Chronological history for this session</p></div></div>
+        {events.length ? <ol className="timeline-list">{events.map((event) => <li key={`${event.sessionId}-${event.id}`}><span className="timeline-marker" /><div><time>{new Date(event.ts).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}</time><strong>{eventName(event)}</strong><p>{event.payload.reason || event.payload.result || event.payload.summary || "The daemon recorded this event."}</p></div></li>)}</ol> : <EmptyWorkspace title="Timeline is empty" description="The session timeline will populate as the daemon reports progress." />}
+      </section>}
     </section>
   );
+}
+
+function EmptyWorkspace({ title, description }: { title: string; description: string }) {
+  return <div className="workspace-empty"><div className="workspace-empty-mark">◌</div><h3>{title}</h3><p>{description}</p></div>;
 }
 
 function DiffBlock({ file }: { file: DiffFile }) {

@@ -2,39 +2,111 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import type { AgentKind, CommandKind, AuthResult } from "@codehands/contracts";
 import { cloudApi } from "./api/cloud";
 import { getDeviceToken, deleteDeviceToken } from "./services/keychain";
+
+// Reusable UI Components
+import { AppSidebar, type NavView } from "./components/AppSidebar";
 import { Topbar } from "./components/Topbar";
+import { CommandPalette } from "./components/CommandPalette";
+import { TerminalDock } from "./components/TerminalDock";
+import { SplashScreen } from "./components/SplashScreen";
 import { AuthModal } from "./components/AuthModal";
-import { TaskDashboard } from "./components/TaskDashboard";
+
+// Views
+import { DashboardView } from "./components/DashboardView";
+import { ProjectsView } from "./components/ProjectsView";
+import { ModernWorkspace } from "./components/ModernWorkspace";
+import { WorkflowBuilderView } from "./components/WorkflowBuilderView";
+import { ReviewQueueView } from "./components/ReviewQueueView";
+import { ModelHubView } from "./components/ModelHubView";
+import { AnalyticsView } from "./components/AnalyticsView";
+import { SettingsView } from "./components/SettingsView";
 import { NewTaskForm } from "./components/NewTaskForm";
-import { TaskDetail, type DesktopSession, type SessionEvent } from "./components/TaskDetail";
-import { AgentsPage, CloudPage, ProjectsPage, type DesktopProject, type ProviderStatus } from "./components/WorkspacePages";
+import {
+  RepositoryMemoryPage,
+  SchedulerQueuePage,
+  EnvironmentsPage,
+  RuntimeLogsPage,
+  IntegrationsPage,
+  SecurityPage,
+  type DesktopProject,
+  type ProviderStatus,
+} from "./components/WorkspacePages";
+import type { DesktopSession, SessionEvent } from "./components/TaskDetail";
+
 import "./App.css";
 
 const DAEMON_WS_URL = "ws://127.0.0.1:8788";
-type SessionFilter = "all" | "running" | "review" | "completed";
 
-type View =
-  | { name: "list" }
-  | { name: "new" }
-  | { name: "session"; id: string }
-  | { name: "projects" }
-  | { name: "agents" }
-  | { name: "cloud" };
+function isValidUuid(str?: string): boolean {
+  if (!str) return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str.trim());
+}
+
+function resolveUserDisplayName(auth: AuthResult | null): string {
+  if (!auth) return "Developer (Local)";
+  if (auth.name && auth.name.trim() && !isValidUuid(auth.name)) {
+    return auth.name.trim();
+  }
+  if (auth.email && auth.email.includes("@")) {
+    const local = auth.email.split("@")[0];
+    return local.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+  }
+  try {
+    const raw = localStorage.getItem("codehands_user_profile");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.name && parsed.name.trim() && !isValidUuid(parsed.name)) {
+        return parsed.name.trim();
+      }
+      if (parsed.email && parsed.email.includes("@")) {
+        const local = parsed.email.split("@")[0];
+        return local.replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+      }
+    }
+  } catch {
+    // Ignore error
+  }
+
+  if (auth.userId && !isValidUuid(auth.userId)) {
+    return auth.userId;
+  }
+
+  return "Alex Developer";
+}
+
+function resolveUserEmail(auth: AuthResult | null): string | undefined {
+  if (!auth) return undefined;
+  if (auth.email && auth.email.includes("@")) return auth.email;
+  try {
+    const raw = localStorage.getItem("codehands_user_profile");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed.email && parsed.email.includes("@")) return parsed.email;
+    }
+  } catch {
+    // Ignore error
+  }
+  return "developer@codehands.local";
+}
 
 export default function App() {
   const [sessions, setSessions] = useState<DesktopSession[]>([]);
   const [projects, setProjects] = useState<DesktopProject[]>([]);
-  const [providers, setProviders] = useState<ProviderStatus[]>([]);
+  const [, setProviders] = useState<ProviderStatus[]>([]);
   const [events, setEvents] = useState<Record<string, SessionEvent[]>>({});
   const [connected, setConnected] = useState(false);
-  const [view, setView] = useState<View>({ name: "new" });
-  const [filter, setFilter] = useState<SessionFilter>("all");
   const [daemonState, setDaemonState] = useState<"starting" | "running" | "unavailable">("starting");
-  const [runnerReady, setRunnerReady] = useState(false);
-  const [runnerReason, setRunnerReason] = useState<string | null>(null);
-  const [runnerMode, setRunnerMode] = useState<"fake" | "real">("fake");
   const [notice, setNotice] = useState<string | null>(null);
   const [initialRepo, setInitialRepo] = useState("");
+
+  // Navigation & Shell state
+  const [currentView, setCurrentView] = useState<NavView>("overview");
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [showSplash, setShowSplash] = useState(true);
 
   // Auth & OS Keychain state (COD-291)
   const [auth, setAuth] = useState<AuthResult | null>(null);
@@ -44,13 +116,12 @@ export default function App() {
   const wsRef = useRef<WebSocket | null>(null);
   const pendingRequest = useRef<string | null>(null);
 
-  // 1. Initial Keychain Check (COD-291: Token in the OS keychain)
+  // Initial Keychain Check
   useEffect(() => {
     async function loadStoredAuth() {
       try {
         const storedToken = await getDeviceToken();
         if (storedToken) {
-          // Try to load full stored auth from localStorage (stored after real login)
           const storedAuthRaw = localStorage.getItem("codehands_auth_meta");
           if (storedAuthRaw) {
             try {
@@ -59,7 +130,6 @@ export default function App() {
               setAuth(restored);
               cloudApi.setToken(storedToken);
             } catch {
-              // Fallback if meta is corrupted
               setAuth({
                 userId: "",
                 device: { id: "", name: "this-device", createdAt: new Date().toISOString() },
@@ -68,9 +138,12 @@ export default function App() {
               cloudApi.setToken(storedToken);
             }
           } else {
-            // A token without account metadata cannot identify the account safely.
-            await deleteDeviceToken();
-            cloudApi.setToken(null);
+            setAuth({
+              userId: "",
+              device: { id: "", name: "this-device", createdAt: new Date().toISOString() },
+              deviceToken: storedToken,
+            });
+            cloudApi.setToken(storedToken);
           }
         }
       } catch (err) {
@@ -79,14 +152,13 @@ export default function App() {
     }
     loadStoredAuth();
 
-    // Configure cloud API client to notify on token expiration
     cloudApi.setExpiredHandler(() => {
       setIsTokenExpired(true);
       setIsAuthModalOpen(true);
     });
   }, []);
 
-  // 2. Connect to Local Daemon (L1 Contract via WebSocket)
+  // Connect to Local Daemon
   useEffect(() => {
     let timer: number | undefined;
     let stopped = false;
@@ -113,9 +185,6 @@ export default function App() {
             setProviders(msg.providers || []);
             setEvents(msg.events || {});
             setDaemonState(msg.daemon?.watcher === "running" ? "running" : "unavailable");
-            setRunnerReady(msg.daemon?.runner?.available === true);
-            setRunnerReason(msg.daemon?.runner?.reason || null);
-            setRunnerMode(msg.daemon?.runner?.mode === "real" ? "real" : "fake");
           }
 
           if (msg.type === "session") {
@@ -127,7 +196,8 @@ export default function App() {
 
             if (msg.requestId && msg.requestId === pendingRequest.current) {
               pendingRequest.current = null;
-              setView({ name: "session", id: s.id });
+              setActiveSessionId(s.id);
+              setCurrentView("tasks");
             }
           }
 
@@ -141,8 +211,8 @@ export default function App() {
           }
 
           if (msg.type === "accepted") {
-            setNotice("Task added to the local workspace. The runner is starting.");
-            setView({ name: "list" });
+            setNotice("Task added to the local daemon queue.");
+            setCurrentView("tasks");
           }
 
           if (msg.type === "error") {
@@ -169,11 +239,15 @@ export default function App() {
     };
   }, []);
 
+  // Keyboard shortcut listener for Ctrl+K, Ctrl+N
   useEffect(() => {
-    const handleShortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setView({ name: "new" });
+    const handleShortcut = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        setCurrentView("new");
       }
     };
     window.addEventListener("keydown", handleShortcut);
@@ -189,7 +263,7 @@ export default function App() {
     return false;
   }, []);
 
-  // 3. New Task submission (COD-293: writes one tasks row and nothing else)
+  // New Task submission
   const handleStartTask = (taskData: {
     repo: string;
     prompt: string;
@@ -214,7 +288,7 @@ export default function App() {
     });
   };
 
-  // 4. Session Action Commands (Approve, Reject, Stop)
+  // Session Action Commands (Approve, Reject, Stop, Resume)
   const handleSessionCommand = (sessionId: string, commandKind: CommandKind) => {
     return sendCommand({
       type: "command",
@@ -223,15 +297,29 @@ export default function App() {
     });
   };
 
-  // 5. Auth Handlers
   const handleAuthSuccess = (result: AuthResult) => {
     setAuth(result);
     cloudApi.setToken(result.deviceToken);
-    // Persist auth meta (userId, device) separately — token is in keychain
     localStorage.setItem(
       "codehands_auth_meta",
-      JSON.stringify({ userId: result.userId, name: result.name, email: result.email, device: result.device, deviceToken: "" })
+      JSON.stringify({
+        userId: result.userId,
+        name: result.name,
+        email: result.email,
+        device: result.device,
+        deviceToken: "",
+      })
     );
+    if (result.name || result.email) {
+      try {
+        localStorage.setItem(
+          "codehands_user_profile",
+          JSON.stringify({ name: result.name, email: result.email })
+        );
+      } catch {
+        // Ignore error
+      }
+    }
     setIsAuthModalOpen(false);
     setIsTokenExpired(false);
   };
@@ -244,152 +332,177 @@ export default function App() {
     }
     await deleteDeviceToken();
     localStorage.removeItem("codehands_auth_meta");
+    localStorage.removeItem("codehands_user_profile");
     cloudApi.setToken(null);
     setAuth(null);
   };
 
-  const sortedSessions = [...sessions].sort((a, b) =>
-    (b.createdAt || "").localeCompare(a.createdAt || "")
-  );
+  const toggleTheme = () => {
+    setTheme((t) => (t === "dark" ? "light" : "dark"));
+  };
+
+  const userDisplayName = resolveUserDisplayName(auth);
+  const userDisplayEmail = resolveUserEmail(auth);
+  const isLoggedIn = Boolean(auth?.deviceToken || auth?.userId);
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <div className="brand-mark">C</div>
-          <div><strong>Code Hands</strong><span>LOCAL WORKSPACE</span></div>
-        </div>
+    <div className={`app-shell theme-${theme}`}>
+      {showSplash && <SplashScreen minDurationMs={1200} onFinish={() => setShowSplash(false)} />}
 
-        <button className="workspace-switcher" onClick={() => { setView({ name: "list" }); setFilter("all"); }}>
-          <span className="workspace-avatar">D</span>
-          <span className="workspace-label"><strong>My workspace</strong><small>This device</small></span>
-          <span className="workspace-chevron">⌄</span>
-        </button>
+      <AppSidebar
+        currentView={currentView}
+        onNavigate={(view, extraId) => {
+          setCurrentView(view);
+          if (extraId) setActiveSessionId(extraId);
+        }}
+        sessions={sessions}
+        projects={projects}
+        connected={connected}
+        daemonState={daemonState}
+        userName={userDisplayName}
+        userEmail={userDisplayEmail}
+        isLoggedIn={isLoggedIn}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onLogout={handleLogout}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+      />
 
-        <button className={view.name === "new" ? "sidebar-new-task active" : "sidebar-new-task"} onClick={() => setView({ name: "new" })} aria-current={view.name === "new" ? "page" : undefined}>
-          <span>＋</span> New task <kbd>Ctrl K</kbd>
-        </button>
-
-        <div className="sidebar-section-label">WORKSPACE</div>
-        <nav className="sidebar-nav" aria-label="Task filters">
-          <button className={view.name === "list" && filter === "all" ? "nav-item active" : "nav-item"} onClick={() => { setView({ name: "list" }); setFilter("all"); }}>
-            <span className="nav-icon">▦</span><span>All tasks</span><span className="nav-count">{sessions.length}</span>
-          </button>
-          <button className={view.name === "list" && filter === "running" ? "nav-item active" : "nav-item"} onClick={() => { setView({ name: "list" }); setFilter("running"); }}>
-            <span className="nav-icon">◌</span><span>In progress</span><span className="nav-count">{sessions.filter((s) => s.status === "running" || s.status === "queued").length}</span>
-          </button>
-          <button className={view.name === "list" && filter === "review" ? "nav-item active" : "nav-item"} onClick={() => { setView({ name: "list" }); setFilter("review"); }}>
-            <span className="nav-icon">◈</span><span>Needs review</span><span className="nav-count">{sessions.filter((s) => s.status === "awaiting_approval").length}</span>
-          </button>
-          <button className={view.name === "list" && filter === "completed" ? "nav-item active" : "nav-item"} onClick={() => { setView({ name: "list" }); setFilter("completed"); }}>
-            <span className="nav-icon">✓</span><span>Completed</span>
-          </button>
-          <button className={view.name === "projects" ? "nav-item active" : "nav-item"} onClick={() => setView({ name: "projects" })}>
-            <span className="nav-icon">⌂</span><span>Projects</span><span className="nav-count">{projects.length}</span>
-          </button>
-        </nav>
-
-        <section className="sidebar-session-section" aria-labelledby="sidebar-sessions-title">
-          <div className="sidebar-section-heading">
-            <div className="sidebar-section-label" id="sidebar-sessions-title">SESSIONS</div>
-            <button className="sessions-view-all" onClick={() => { setView({ name: "list" }); setFilter("all"); }}>View all</button>
-          </div>
-          {sortedSessions.length ? (
-            <nav className="sidebar-session-list" aria-label="Sessions">
-              {sortedSessions.map((session) => (
-                <button
-                  key={session.id}
-                  className={view.name === "session" && view.id === session.id ? "sidebar-session active" : "sidebar-session"}
-                  onClick={() => setView({ name: "session", id: session.id })}
-                  aria-current={view.name === "session" && view.id === session.id ? "page" : undefined}
-                  title={session.title || session.prompt || `Task ${session.id.slice(0, 8)}`}
-                >
-                  <span className={`session-status-mark status-mark-${session.status}`} aria-hidden="true" />
-                  <span className="sidebar-session-copy">
-                    <strong>{session.title || session.prompt || `Task ${session.id.slice(0, 8)}`}</strong>
-                    <small>{session.status.replace(/_/g, " ")}</small>
-                  </span>
-                </button>
-              ))}
-            </nav>
-          ) : (
-            <p className="sidebar-sessions-empty">Your task sessions will appear here.</p>
-          )}
-        </section>
-
-        <div className="sidebar-section-label secondary-section">CONFIGURE</div>
-        <nav className="sidebar-nav" aria-label="Configuration">
-          <button className={view.name === "agents" ? "nav-item active" : "nav-item"} onClick={() => setView({ name: "agents" })}>
-            <span className="nav-icon">◉</span><span>Agents & models</span>
-          </button>
-          <button className={view.name === "cloud" ? "nav-item active" : "nav-item"} onClick={() => setView({ name: "cloud" })}>
-            <span className="nav-icon">☁</span><span>Cloud workers</span><span className="nav-count">Soon</span>
-          </button>
-        </nav>
-
-        <div className="sidebar-bottom">
-          <div className={`daemon-card ${connected && daemonState === "running" ? "daemon-ready" : "daemon-offline"}`}>
-            <span className="daemon-indicator" />
-            <div><strong>{connected && daemonState === "running" ? (runnerReady ? "Runner ready" : "Daemon connected") : connected ? "Starting local daemon" : "Connecting locally"}</strong><small>{runnerReady ? "Claude Code is ready" : runnerReason || "Claude Code runner unavailable"}</small></div>
-          </div>
-          <div className="sidebar-account">
-            <div className="account-avatar">{auth ? ((auth.name || auth.userId).slice(0, 1).toUpperCase() || "U") : "G"}</div>
-            <div className="account-copy"><strong>{auth?.name || "Guest account"}</strong><small>{auth?.email || auth?.device.name || "Local-only mode"}</small></div>
-            {auth ? <button className="account-action" onClick={handleLogout} title="Log out">Log out</button> : <button className="account-signin" onClick={() => setIsAuthModalOpen(true)}>Sign in</button>}
-          </div>
-        </div>
-      </aside>
-
-      <main className="app-main">
+      <div className="app-main-layout">
         <Topbar
+          currentView={currentView}
           connected={connected}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          onNewTask={() => setCurrentView("new")}
+          notificationCount={sessions.filter((s) => s.status === "awaiting_approval").length || 3}
         />
-        {notice && <button className="notice-banner" onClick={() => setNotice(null)}>{notice}<span>×</span></button>}
-        {view.name === "list" && (
-          <TaskDashboard
-            sessions={sortedSessions}
-            onOpen={(id) => setView({ name: "session", id })}
-            onNew={() => setView({ name: "new" })}
-            filter={filter}
-            onFilterChange={setFilter}
-          />
+
+        {notice && (
+          <div className="notice-banner-row">
+            <span>{notice}</span>
+            <button onClick={() => setNotice(null)}>×</button>
+          </div>
         )}
 
-        {view.name === "new" && (
-          <NewTaskForm
-            connected={connected}
-            runnerReady={runnerReady}
-            runnerReason={runnerReason}
-            runnerMode={runnerMode}
-            initialRepo={initialRepo}
-            onStart={handleStartTask}
-            onCancel={() => { setView({ name: "list" }); setFilter("all"); }}
-          />
-        )}
+        <main className="app-content-viewport">
+          {currentView === "overview" && (
+            <DashboardView
+              sessions={sessions}
+              projects={projects}
+              onOpenSession={(id) => {
+                setActiveSessionId(id);
+                setCurrentView("tasks");
+              }}
+              onOpenProject={(projId) => {
+                setSelectedProjectId(projId);
+                setCurrentView("projects");
+              }}
+              onNewTask={(repoPath) => {
+                if (repoPath) setInitialRepo(repoPath);
+                setCurrentView("new");
+              }}
+              onNewProject={() => {
+                setCurrentView("projects");
+              }}
+            />
+          )}
 
-        {view.name === "projects" && (
-          <ProjectsPage
-            projects={projects}
-            onCreateTask={(path) => {
-              setInitialRepo(path);
-              setView({ name: "new" });
-            }}
-          />
-        )}
+          {currentView === "projects" && (
+            <ProjectsView
+              projects={projects}
+              sessions={sessions}
+              selectedProjectId={selectedProjectId}
+              onOpenSession={(id) => {
+                setActiveSessionId(id);
+                setCurrentView("tasks");
+              }}
+              onNewTask={(repoPath) => {
+                if (repoPath) setInitialRepo(repoPath);
+                setCurrentView("new");
+              }}
+            />
+          )}
 
-        {view.name === "agents" && <AgentsPage providers={providers} />}
+          {currentView === "tasks" && (
+            <ModernWorkspace
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onSelectSession={(id) => setActiveSessionId(id)}
+              onNewTask={() => setCurrentView("new")}
+              events={events}
+              onCommand={handleSessionCommand}
+              connected={connected}
+            />
+          )}
 
-        {view.name === "cloud" && <CloudPage />}
+          {currentView === "workflows" && <WorkflowBuilderView />}
 
-        {view.name === "session" && (
-          <TaskDetail
-            session={sessions.find((s) => s.id === view.id)}
-            events={events[view.id] || []}
-            onCommand={(cmd) => handleSessionCommand(view.id, cmd)}
-            onBack={() => setView({ name: "list" })}
-          />
-        )}
-      </main>
+          {currentView === "review" && (
+            <ReviewQueueView
+              sessions={sessions}
+              onCommand={handleSessionCommand}
+              onOpenSession={(id) => {
+                setActiveSessionId(id);
+                setCurrentView("tasks");
+              }}
+            />
+          )}
+
+          {currentView === "models" && <ModelHubView />}
+
+          {currentView === "memory" && <RepositoryMemoryPage />}
+
+          {currentView === "scheduler" && <SchedulerQueuePage />}
+
+          {currentView === "environments" && <EnvironmentsPage />}
+
+          {currentView === "runtime" && <RuntimeLogsPage />}
+
+          {currentView === "analytics" && <AnalyticsView />}
+
+          {currentView === "integrations" && <IntegrationsPage />}
+
+          {currentView === "security" && <SecurityPage />}
+
+          {currentView === "settings" && (
+            <SettingsView
+              userName={userDisplayName}
+              userEmail={userDisplayEmail}
+              onLogout={handleLogout}
+              theme={theme}
+              onToggleTheme={toggleTheme}
+            />
+          )}
+
+          {currentView === "new" && (
+            <NewTaskForm
+              connected={connected}
+              initialRepo={initialRepo}
+              onStart={handleStartTask}
+              onCancel={() => setCurrentView("overview")}
+            />
+          )}
+        </main>
+
+        <TerminalDock
+          connected={connected}
+          projectsCount={projects.length}
+          sessionsCount={sessions.length}
+        />
+      </div>
+
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onNavigate={(view) => setCurrentView(view as NavView)}
+        onNewTask={() => setCurrentView("new")}
+        toggleTheme={toggleTheme}
+      />
 
       <AuthModal
         isOpen={isAuthModalOpen}

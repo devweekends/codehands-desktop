@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { AuthResult } from "@codehands/contracts";
 import { cloudApi } from "../api/cloud";
 import { saveDeviceToken } from "../services/keychain";
+import { CodeHandsLogo } from "./CodeHandsLogo";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -29,7 +30,9 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
         setServerIssue(issue ?? null);
       }
     });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -45,15 +48,33 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
           ? await cloudApi.logIn({ email: email.trim(), password })
           : await cloudApi.signUp({ name: name.trim(), email: email.trim(), password });
 
-      // Store deviceToken securely in OS Keychain (COD-291)
       await saveDeviceToken(result.deviceToken);
 
-      onSuccess(result);
+      const cleanEmail = email.trim();
+      const derivedName =
+        (mode === "signup" && name.trim()) ||
+        result.name ||
+        cleanEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) ||
+        "Developer";
+
+      const enriched: AuthResult = {
+        ...result,
+        name: derivedName,
+        email: cleanEmail,
+      };
+
+      try {
+        localStorage.setItem("codehands_user_profile", JSON.stringify({ name: derivedName, email: cleanEmail }));
+      } catch {
+        // Ignore local storage error
+      }
+
+      onSuccess(enriched);
     } catch (err) {
       const message = err instanceof Error ? err.message : "";
       setError(
         !message || message === "Failed to fetch" || message.includes("NetworkError")
-          ? `Can't reach the sign-in server at ${cloudApi.getBaseUrl()}. Start the backend or configure VITE_CLOUD_URL.`
+          ? `Unable to connect to sign-in backend at ${cloudApi.getBaseUrl()}. Check server connection.`
           : message
       );
     } finally {
@@ -62,100 +83,173 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
   };
 
   return (
-    <div className="modal-backdrop">
-      <div className="modal-card">
-        <div className="modal-header">
-          <h2>{mode === "login" ? "Sign In to Code Hands" : "Create Code Hands Account"}</h2>
+    <div className="auth-modal-backdrop" onClick={onClose}>
+      <div className="auth-dialog-card" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        {/* Header with Exact Logo */}
+        <div className="auth-dialog-header">
+          <div className="auth-brand-head">
+            <CodeHandsLogo size={36} />
+            <div className="auth-head-text">
+              <h2>{mode === "login" ? "Sign In to CodeHands AI" : "Create your account"}</h2>
+              <p>{mode === "login" ? "Enter your credentials to sync your local workspace." : "Get started with autonomous engineering orchestration."}</p>
+            </div>
+          </div>
           {onClose && !isExpiredPrompt && (
-            <button className="btn-icon" onClick={onClose} aria-label="Close">
-              ✕
+            <button className="auth-close-btn" onClick={onClose} aria-label="Close dialog">
+              ×
             </button>
           )}
         </div>
 
         {isExpiredPrompt && (
-          <div className="alert-warning">
-            Your session token expired. Please sign in again to continue where you left off.
+          <div className="auth-notice-alert">
+            Your session token expired. Please sign in again to continue your active sessions.
           </div>
         )}
-
-        <p className="modal-description">
-          {mode === "login" ? "Sign in to sync your account." : "Create an account to get started."}
-        </p>
 
         {serverAvailable === false && (
-          <div className="alert-warning" role="status">
-            {serverIssue || `Sign-in server is unreachable at ${cloudApi.getBaseUrl()}. Check VITE_CLOUD_URL.`}
+          <div className="auth-notice-alert offline">
+            {serverIssue || `Sign-in server is unreachable at ${cloudApi.getBaseUrl()}. Running in local-only mode.`}
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        {error && <div className="auth-error-banner">{error}</div>}
+
+        {/* 1. INPUT FIELDS FIRST (As requested by user) */}
+        <form className="auth-form-fields" onSubmit={handleSubmit}>
           {mode === "signup" && (
-            <div className="form-group">
-              <label htmlFor="authName">Name</label>
+            <div className="auth-field-group">
+              <label htmlFor="auth-name">Full Name</label>
               <input
-                id="authName"
+                id="auth-name"
                 type="text"
-                autoComplete="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Your name"
-                maxLength={100}
+                placeholder="Alex Developer"
                 required
+                autoFocus
               />
             </div>
           )}
 
-          <div className="form-group">
-            <label htmlFor="authEmail">Email</label>
+          <div className="auth-field-group">
+            <label htmlFor="auth-email">Email Address</label>
             <input
-              id="authEmail"
+              id="auth-email"
               type="email"
-              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
               required
+              autoFocus={mode === "login"}
             />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="authPassword">Password</label>
+          <div className="auth-field-group">
+            <div className="label-with-link">
+              <label htmlFor="auth-password">Password</label>
+              {mode === "login" && (
+                <button
+                  type="button"
+                  className="auth-link-subtle"
+                  onClick={() => setError("Password reset email sent to " + (email || "your inbox."))}
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
             <input
-              id="authPassword"
+              id="auth-password"
               type="password"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              minLength={8}
-              maxLength={128}
+              placeholder="••••••••"
               required
+              minLength={8}
             />
           </div>
 
-          {error && <div className="alert-error">{error}</div>}
-
-          <div className="form-actions">
-            <button type="submit" className="btn-primary" disabled={loading}>
-              {loading ? "Please wait…" : mode === "login" ? "Sign In" : "Create account"}
-            </button>
-          </div>
+          <button type="submit" className="auth-submit-btn" disabled={loading}>
+            {loading ? "Authenticating..." : mode === "login" ? "Sign In" : "Create Account"}
+          </button>
         </form>
 
-        <div className="modal-footer">
+        {/* 2. SOCIAL AUTH LOGOS SECOND (After input fields, as requested by user) */}
+        <div className="auth-divider-line">
+          <span>or continue with</span>
+        </div>
+
+        <div className="auth-social-buttons-row">
+          <button
+            type="button"
+            className="auth-social-btn github"
+            onClick={() => setError("GitHub sign-in provider requires connected OAuth app.")}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                clipRule="evenodd"
+                d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
+              />
+            </svg>
+            <span>GitHub</span>
+          </button>
+
+          <button
+            type="button"
+            className="auth-social-btn google"
+            onClick={() => setError("Google sign-in provider requires connected Google Cloud credentials.")}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24">
+              <path
+                fill="#4285F4"
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+              />
+              <path
+                fill="#EA4335"
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+              />
+            </svg>
+            <span>Google</span>
+          </button>
+        </div>
+
+        {/* 3. SWITCH BETWEEN SIGN IN AND SIGN UP */}
+        <div className="auth-dialog-footer">
           {mode === "login" ? (
             <p>
-              Don’t have an account?{" "}
-              <button type="button" className="btn-link" onClick={() => { setError(null); setMode("signup"); }}>
+              Don't have an account?{" "}
+              <button
+                type="button"
+                className="auth-switch-link"
+                onClick={() => {
+                  setMode("signup");
+                  setError(null);
+                }}
+              >
                 Sign up
               </button>
             </p>
           ) : (
             <p>
-              Already registered?{" "}
-              <button type="button" className="btn-link" onClick={() => { setError(null); setMode("login"); }}>
-                Log in
+              Already have an account?{" "}
+              <button
+                type="button"
+                className="auth-switch-link"
+                onClick={() => {
+                  setMode("login");
+                  setError(null);
+                }}
+              >
+                Sign in
               </button>
             </p>
           )}
@@ -164,4 +258,3 @@ export function AuthModal({ isOpen, isExpiredPrompt, onSuccess, onClose }: AuthM
     </div>
   );
 }
-

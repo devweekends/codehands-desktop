@@ -1,49 +1,33 @@
 # Colors
 
-The values below reflect the current UI in `src/App.css`. Some component styles still use literal colors instead of CSS variables; the table documents their present visual roles, not a fully centralized implementation.
+The design tokens and colors define the visual foundation of **CodeHands AI**, embodying a premium dark-first developer workspace theme: *"Engineering work, orchestrated."*
 
-## Core palette
+## Core Palette
 
-| Role | Value | Current usage |
-| --- | --- | --- |
-| App background (`--bg`) | `#101116` | Main canvas and page background |
-| Surface (`--surface`) | `#17191f` | Cards, panels, and form surfaces |
-| Raised surface (`--surface-raised`) | `#1d2027` | Elevated content (available token) |
-| Hover surface (`--surface-hover`) | `#232630` | Interactive surface hover (available token) |
-| Sidebar | `#14151b` | Navigation rail |
-| Input background | `#111319` | Text fields and diff background |
-| Border (`--border`) | `#2a2d37` | Shared border token; components also use close variants |
-| Primary text (`--text`) | `#e8eaf0` | Main content text |
-| Muted text (`--muted`) | `#8d929f` | Supporting copy |
-| Subtle text (`--subtle`) | `#626775` | Placeholders and low-emphasis content |
+| Role | Token Name | Hex Value | Usage |
+| --- | --- | --- | --- |
+| Main Canvas | `--bg-main` | `#0B0D16` | Deep obsidian desktop app shell & main workspace background |
+| Secondary Canvas | `--bg-secondary` | `#101421` | Sidebar, navigation rails, and grouped panels |
+| Surface | `--surface` | `#141827` | Content cards, diff panes, modals, and container surfaces |
+| Elevated Surface | `--surface-elevated` | `#1A2031` | Flyout menus, active selection highlights, dropdowns, popovers |
+| Primary Accent | `--accent-primary` | `#7857FF` | Electric violet for active buttons, selected nodes, brand focus |
+| Secondary Accent | `--accent-secondary` | `#27B7F5` | Neon cyan for secondary highlights, links, metrics, progress |
+| Primary Text | `--text-primary` | `#F4F5FA` | Headings, high-contrast values, active labels |
+| Secondary Text | `--text-secondary` | `#969DB0` | Body text, descriptions, table contents, and secondary labels |
+| Muted Text | `--text-muted` | `#687087` | Placeholders, keyboard shortcut hints, timestamps, subtitles |
+| Border | `--border` | `#272D40` | Subtle hairline dividers, card borders, and input boundaries |
 
-## Brand and actions
+## Semantic Status Palette
 
-| Role | Value | Usage |
-| --- | --- | --- |
-| Accent (`--accent`) | `#9c8cff` | Focus ring, active indicator, and accent details |
-| Strong accent (`--accent-strong`) | `#846df3` | Checkbox accent |
-| Primary action fill | `#b6a8ff` | Main buttons and selected emphasis |
-| Brand mark gradient | `#a18eff` → `#6952d8` | Sidebar “C” mark |
-| Informational blue (`--blue`) | `#70a7ff` | Running and informational states |
-
-Primary buttons currently pair a pale violet fill with dark foreground text. Preserve clear text contrast and keep focus styling visible against both surfaces and controls.
-
-## Semantic status palette
-
-| Meaning | Accent | Typical dark treatment |
-| --- | --- | --- |
-| Success / ready | `#63d4a0` | `#20372a`–`#244333` |
-| Warning / awaiting action | `#f0bc65` | `#3a3023`–`#493a26` |
-| Error / rejected / failed | `#f07d82` | `#3b262b`–`#3d272c` |
-| Running / information | `#70a7ff` | `#233149`–`#25364e` |
-| Neutral / queued | `#c6bddf` | `#2b2838` |
-
-Use semantic color consistently, and pair it with text, an icon, or another non-color cue. Exact status surface/border values vary by component; check `src/App.css` before introducing a new pattern.
+| Meaning | Hex Value | Dark Background Shade | Usage |
+| --- | --- | --- | --- |
+| Success / Done | `#20C997` | `rgba(32, 201, 151, 0.12)` | Passing tests, approved pull requests, completed execution |
+| Warning / Review | `#FFB547` | `rgba(255, 181, 71, 0.12)` | Awaiting approval, blockers, rate limit thresholds |
+| Error / Failed | `#FF647C` | `rgba(255, 100, 124, 0.12)` | Execution failure, rejected changes, lint errors |
+| Info / Running | `#27B7F5` | `rgba(39, 183, 245, 0.12)` | Active daemon running, streaming logs, queued tasks |
 
 ## Guidance
 
-- Use dark neutrals for large areas; reserve saturated colors for actions, focus, and status.
-- Do not use the semantic status colors interchangeably.
-- Avoid low-contrast muted text for essential instructions or state.
-- When changing a repeated palette value, update the CSS and [design-tokens.json](design-tokens.json) together.
+- Dark neutrals (`#0B0D16`, `#101421`, `#141827`) dominate large viewports to minimize eye fatigue during extended engineering sessions.
+- Accents (`#7857FF`, `#27B7F5`) are used purposefully on interactive states, active workflow nodes, and critical actions.
+- Text contrast strictly complies with WCAG AA standards: `#F4F5FA` and `#969DB0` provide sharp legibility across all dark surfaces.

@@ -1,37 +1,33 @@
 {
   "source": "src/App.css",
-  "note": "Reference snapshot only; not imported by the application.",
+  "note": "Reference snapshot and design tokens for CodeHands AI workspace.",
   "colors": {
-    "background": "#101116",
-    "surface": "#17191f",
-    "surfaceRaised": "#1d2027",
-    "surfaceHover": "#232630",
-    "sidebar": "#14151b",
-    "input": "#111319",
-    "border": "#2a2d37",
-    "text": "#e8eaf0",
-    "muted": "#8d929f",
-    "subtle": "#626775",
-    "accent": "#9c8cff",
-    "accentStrong": "#846df3",
-    "primaryAction": "#b6a8ff",
-    "brandGradientStart": "#a18eff",
-    "brandGradientEnd": "#6952d8",
-    "blue": "#70a7ff",
-    "green": "#63d4a0",
-    "amber": "#f0bc65",
-    "red": "#f07d82"
+    "mainBackground": "#0B0D16",
+    "secondaryBackground": "#101421",
+    "surface": "#141827",
+    "elevatedSurface": "#1A2031",
+    "primaryAccent": "#7857FF",
+    "secondaryAccent": "#27B7F5",
+    "primaryText": "#F4F5FA",
+    "secondaryText": "#969DB0",
+    "mutedText": "#687087",
+    "border": "#272D40",
+    "success": "#20C997",
+    "warning": "#FFB547",
+    "error": "#FF647C"
   },
   "typography": {
-    "ui": "DM Sans, Segoe UI, sans-serif",
-    "technical": "JetBrains Mono, Consolas, monospace"
+    "ui": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "technical": "'JetBrains Mono', Consolas, 'Courier New', monospace"
   },
   "shape": {
-    "baseRadius": "12px"
+    "baseRadius": "10px",
+    "cardRadius": "12px",
+    "pillRadius": "9999px"
   },
   "breakpoints": {
-    "compactTables": "1050px",
-    "mobileNavigation": "760px",
+    "compactTables": "1080px",
+    "mobileNavigation": "768px",
     "smallPhone": "480px"
   }
 }
