@@ -10,6 +10,7 @@ import { CommandPalette } from "./components/CommandPalette";
 import { TerminalDock } from "./components/TerminalDock";
 import { SplashScreen } from "./components/SplashScreen";
 import { AuthModal } from "./components/AuthModal";
+import { OAuthPopupWindow } from "./components/OAuthPopupWindow";
 
 // Views
 import { DashboardView } from "./components/DashboardView";
@@ -90,6 +91,12 @@ function resolveUserEmail(auth: AuthResult | null): string | undefined {
 }
 
 export default function App() {
+  // Check if opened as an OAuth popup window
+  const oauthParam = new URLSearchParams(window.location.search).get("oauth");
+  if (oauthParam === "google" || oauthParam === "github") {
+    return <OAuthPopupWindow provider={oauthParam} />;
+  }
+
   const [sessions, setSessions] = useState<DesktopSession[]>([]);
   const [projects, setProjects] = useState<DesktopProject[]>([]);
   const [, setProviders] = useState<ProviderStatus[]>([]);
