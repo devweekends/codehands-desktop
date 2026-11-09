@@ -1,0 +1,33 @@
+{
+  "source": "src/App.css",
+  "note": "Reference snapshot and design tokens for CodeHands AI workspace.",
+  "colors": {
+    "mainBackground": "#0B0D16",
+    "secondaryBackground": "#101421",
+    "surface": "#141827",
+    "elevatedSurface": "#1A2031",
+    "primaryAccent": "#7857FF",
+    "secondaryAccent": "#27B7F5",
+    "primaryText": "#F4F5FA",
+    "secondaryText": "#969DB0",
+    "mutedText": "#687087",
+    "border": "#272D40",
+    "success": "#20C997",
+    "warning": "#FFB547",
+    "error": "#FF647C"
+  },
+  "typography": {
+    "ui": "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    "technical": "'JetBrains Mono', Consolas, 'Courier New', monospace"
+  },
+  "shape": {
+    "baseRadius": "10px",
+    "cardRadius": "12px",
+    "pillRadius": "9999px"
+  },
+  "breakpoints": {
+    "compactTables": "1080px",
+    "mobileNavigation": "768px",
+    "smallPhone": "480px"
+  }
+}

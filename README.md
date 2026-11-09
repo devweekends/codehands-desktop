@@ -7,7 +7,7 @@ It is the main way people use Code Hands AI. Everything a task needs runs on the
 **Owner:** Tania
 **Contracts:** L1 (local DB), C3 (cloud API), C5 (sessions) in [codehands-contracts](https://github.com/devweekends/codehands-contracts)
 **Part of:** [Code Hands AI](https://github.com/devweekends/codehands-docs). Read the design in that README first.
-**Status:** not started. This repo has no code yet. This README describes what the app must do and how it fits, so it can be built against stand-ins from day one.
+**Status:** early implementation. The desktop UI connects to the local daemon database and writes task/command rows; the current daemon watcher does not yet execute agent runs.
 
 ## Where it sits
 
@@ -53,7 +53,7 @@ The app shows the result by reading `sessions` and `events`. It never changes a 
 
 | Area | Behaviour |
 | --- | --- |
-| Sign up and log in | Against the cloud state API (C3). The token goes into the OS keychain, never a file. Logging out revokes only this machine's token |
+| Sign up and log in | Name, email, and password against the cloud state API (C3). Passwords are stored as scrypt hashes; the device token goes into the OS keychain |
 | Signed-in state | On sign-in, the daemon pulls your sessions, memory and preferences, so a second machine looks like the first |
 | Projects | Add a repo by picking a folder. A project is identified by a hash of its origin URL, so the same repo on another machine is the same project |
 | New task | Prompt, agent (Claude Code or Codex), and a model per phase. Defaults come from your preferences |
@@ -166,6 +166,8 @@ pnpm install
 pnpm tauri dev
 ```
 
-Requires Node, pnpm, and Rust (with the Visual Studio C++ build tools on Windows).
+Requires Node 22.5+, pnpm, Rust, and the Tauri prerequisites (including Visual Studio C++ build tools on Windows). Clone `codehands-backend` and `codehands-contracts` beside this repo under `D:\dev`, as in the team workspace.
 
-In dev, the app starts `fake-daemon.mjs` itself. It is temporary and will be replaced by the real daemon from codehands-server.
+In development, Tauri starts `local-daemon-bridge.mjs`. It applies migrations from `../codehands-backend/daemon/migrations`, opens the same `~/.codehands/state.db` database, and starts the daemon watcher when its dependencies are installed. The watcher imports the sibling runner and contracts source, executes supported Claude Code tasks in isolated Git worktrees, persists events and diffs, and handles stop/resume/approve/reject commands. Install the daemon and runner dependencies before launching the desktop app. The app writes only `projects`, `tasks`, and `commands`; the watcher owns sessions and events. Set `CODEHANDS_DAEMON_DIR` if the daemon clone is not at `../codehands-backend/daemon`, or `CODEHANDS_DB` to use a separate SQLite file. The bridge listens on `127.0.0.1:8788` by default.
+
+Local development uses the built-in contract-compatible fake runner by default, so tasks can be demonstrated without a Claude subscription. Set `CODEHANDS_RUNNER=real` before starting the desktop app only when Claude Code is installed and authenticated locally. The real runner currently supports Claude Code only; Codex and Code Hands options stay disabled until their runner implementations are available. `fake-daemon.mjs` is no longer started by the desktop app.

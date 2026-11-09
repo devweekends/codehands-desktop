@@ -57,10 +57,10 @@ pub fn run() {
             delete_device_token
         ])
         .setup(|app| {
-            // App khulte hi fake daemon start karo
-            // (dev mein folder src-tauri hota hai, is liye ../ lagaya)
+            // Start the desktop-owned bridge to the cloned local daemon database.
+            // The bridge reads the daemon migration files and starts its watcher.
             let child = Command::new("node")
-                .arg("../fake-daemon.mjs")
+                .arg("../local-daemon-bridge.mjs")
                 .spawn()
                 .ok();
             app.manage(Daemon(Mutex::new(child)));

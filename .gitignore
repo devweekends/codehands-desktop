@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .vs/
+
+# Local env (secrets + local URLs, never commit)
+.env
+.env.local
+.env.*.local
