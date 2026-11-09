@@ -13,6 +13,7 @@ import {
   ChevronRightIcon,
   MaximizeIcon,
   MinimizeIcon,
+  TrashIcon,
 } from "./Icons";
 
 interface ModernWorkspaceProps {
@@ -270,6 +271,12 @@ export function ModernWorkspace({
     sessions.find((s) => s.id === activeSessionId) || sessions[0];
 
   const [taskFilter, setTaskFilter] = useState<"all" | "active" | "review">("all");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+
+  const availableProjects = Array.from(
+    new Set(sessions.map((s) => s.projectName || s.repo?.split("\\").pop() || "sample-repo"))
+  ).filter(Boolean);
+
   const [activeTab, setActiveTab] = useState<
     "execution" | "changes" | "logs" | "artifacts" | "timeline"
   >("execution");
@@ -405,6 +412,10 @@ export function ModernWorkspace({
   const currentEvents = currentSession ? events[currentSession.id] || [] : [];
 
   const filteredSessions = sessions.filter((s) => {
+    if (projectFilter !== "all") {
+      const pName = s.projectName || s.repo?.split("\\").pop();
+      if (pName !== projectFilter) return false;
+    }
     if (taskFilter === "active") return s.status === "running" || s.status === "queued";
     if (taskFilter === "review") return s.status === "awaiting_approval";
     return true;
@@ -501,12 +512,35 @@ export function ModernWorkspace({
                 </button>
               </div>
 
+              {availableProjects.length > 1 && (
+                <div className="project-filter-selector">
+                  <select
+                    value={projectFilter}
+                    onChange={(e) => setProjectFilter(e.target.value)}
+                    className="project-filter-dropdown"
+                    title="Filter tasks by project"
+                  >
+                    <option value="all">All Projects ({sessions.length})</option>
+                    {availableProjects.map((name) => {
+                      const count = sessions.filter(
+                        (s) => (s.projectName || s.repo?.split("\\").pop()) === name
+                      ).length;
+                      return (
+                        <option key={name} value={name}>
+                          📁 {name} ({count})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+              )}
+
               <div className="clean-task-filters-row">
                 <button
                   className={`filter-pill ${taskFilter === "all" ? "active" : ""}`}
                   onClick={() => setTaskFilter("all")}
                 >
-                  All ({sessions.length})
+                  All ({filteredSessions.length})
                 </button>
                 <button
                   className={`filter-pill ${taskFilter === "active" ? "active" : ""}`}
@@ -566,6 +600,19 @@ export function ModernWorkspace({
                       </div>
 
                       <span className="task-row-cost">${(s.costUsd || 0).toFixed(2)}</span>
+
+                      {(isFailedItem || isDone) && (
+                        <button
+                          className="btn-task-delete-icon"
+                          title="Delete task from history"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCommand(s.id, "delete" as CommandKind);
+                          }}
+                        >
+                          <TrashIcon size={12} color="#FF647C" />
+                        </button>
+                      )}
                     </div>
                   );
                 })
@@ -797,22 +844,44 @@ export function ModernWorkspace({
               <div className="dock-right-buttons">
                 {currentSession && (
                   <>
-                    <button
-                      className="btn-dock-stop"
-                      onClick={() => onCommand(currentSession.id, "stop")}
-                      disabled={isApproved || isFailed}
-                      title="Stop active execution"
-                    >
-                      Stop
-                    </button>
-                    <button
-                      className="btn-dock-approve"
-                      onClick={() => onCommand(currentSession.id, "approve")}
-                      disabled={isApproved || isFailed}
-                      title="Approve changes"
-                    >
-                      Approve
-                    </button>
+                    {isAwaitingApproval && (
+                      <>
+                        <button
+                          className="btn-dock-stop"
+                          onClick={() => onCommand(currentSession.id, "reject")}
+                          title="Reject changes"
+                          style={{ borderColor: "rgba(255, 100, 124, 0.4)", color: "#FF647C" }}
+                        >
+                          Reject
+                        </button>
+                        <button
+                          className="btn-dock-approve"
+                          onClick={() => onCommand(currentSession.id, "approve")}
+                          title="Approve changes"
+                        >
+                          Approve
+                        </button>
+                      </>
+                    )}
+                    {isRunning && (
+                      <button
+                        className="btn-dock-stop"
+                        onClick={() => onCommand(currentSession.id, "stop")}
+                        title="Stop active execution"
+                      >
+                        Stop
+                      </button>
+                    )}
+                    {isFailed && (
+                      <button
+                        className="btn-dock-stop"
+                        onClick={() => onCommand(currentSession.id, "delete" as CommandKind)}
+                        title="Delete failed task"
+                        style={{ borderColor: "rgba(255, 100, 124, 0.4)", color: "#FF647C" }}
+                      >
+                        Delete Task
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -981,27 +1050,72 @@ export function ModernWorkspace({
             <div className="clean-actions-card">
               <h4>Orchestration Controls</h4>
               <div className="action-buttons-flex">
-                <button
-                  className="btn-clean-action resume"
-                  onClick={() => currentSession && onCommand(currentSession.id, "resume")}
-                  disabled={isApproved || isAwaitingApproval || isFailed}
-                >
-                  Resume
-                </button>
-                <button
-                  className="btn-clean-action stop"
-                  onClick={() => currentSession && onCommand(currentSession.id, "stop")}
-                  disabled={isApproved || isFailed}
-                >
-                  Abort Run
-                </button>
-                <button
-                  className="btn-clean-action approve"
-                  onClick={() => currentSession && onCommand(currentSession.id, "approve")}
-                  disabled={isApproved || isFailed}
-                >
-                  Approve Changes
-                </button>
+                {isAwaitingApproval && (
+                  <>
+                    <button
+                      className="btn-clean-action reject"
+                      onClick={() => currentSession && onCommand(currentSession.id, "reject")}
+                      title="Reject generated code changes and discard working tree"
+                    >
+                      Reject Changes
+                    </button>
+                    <button
+                      className="btn-clean-action approve"
+                      onClick={() => currentSession && onCommand(currentSession.id, "approve")}
+                      title="Approve changes and merge to git branch"
+                    >
+                      ✓ Approve Changes
+                    </button>
+                  </>
+                )}
+
+                {isRunning && (
+                  <button
+                    className="btn-clean-action stop"
+                    onClick={() => currentSession && onCommand(currentSession.id, "stop")}
+                    title="Stop the current running agent task"
+                  >
+                    Abort Run
+                  </button>
+                )}
+
+                {currentSession?.status === "stopped" && (
+                  <button
+                    className="btn-clean-action resume"
+                    onClick={() => currentSession && onCommand(currentSession.id, "resume")}
+                    title="Resume the stopped agent task"
+                  >
+                    Resume Run
+                  </button>
+                )}
+
+                {isFailed && (
+                  <button
+                    className="btn-clean-action delete"
+                    onClick={() => currentSession && onCommand(currentSession.id, "delete" as CommandKind)}
+                    title="Remove this failed task from workspace history"
+                  >
+                    <TrashIcon size={14} color="#FF647C" />
+                    Delete Failed Task
+                  </button>
+                )}
+
+                {isApproved && (
+                  <>
+                    <span className="approved-badge-status" style={{ color: "var(--success)", fontSize: 12, fontWeight: 600 }}>
+                      ✓ Approved &amp; Merged
+                    </span>
+                    <button
+                      className="btn-clean-action delete"
+                      onClick={() => currentSession && onCommand(currentSession.id, "delete" as CommandKind)}
+                      title="Remove task from history"
+                      style={{ marginLeft: "auto" }}
+                    >
+                      <TrashIcon size={13} />
+                      Delete Task
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>

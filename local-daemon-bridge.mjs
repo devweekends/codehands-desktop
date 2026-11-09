@@ -17,7 +17,7 @@ const CLAUDE_PATH = process.env.CODEHANDS_CLAUDE_PATH || "claude";
 const RUNNER_MODE = process.env.CODEHANDS_RUNNER || "fake";
 const USE_FAKE_RUNNER = RUNNER_MODE !== "real";
 const VALID_AGENTS = new Set(["claude-code", "codex", "codehands"]);
-const VALID_COMMANDS = new Set(["approve", "reject", "stop", "resume"]);
+const VALID_COMMANDS = new Set(["approve", "reject", "stop", "resume", "delete"]);
 
 if (!existsSync(join(DAEMON_ROOT, "migrations"))) {
   throw new Error(`Could not find daemon migrations at ${DAEMON_ROOT}. Set CODEHANDS_DAEMON_DIR to the daemon clone.`);
@@ -247,6 +247,28 @@ function createTask(payload) {
   return { taskId: id };
 }
 
+
+function deleteSession(sessionId) {
+  const session = db.prepare("select id, task_id as taskId from sessions where id = ?").get(sessionId);
+  if (!session) return { success: false, message: "Session not found." };
+  try {
+    db.prepare("delete from events where session_id = ?").run(sessionId);
+    db.prepare("delete from command_receipts where command_id in (select id from commands where session_id = ?)").run(sessionId);
+    db.prepare("delete from commands where session_id = ?").run(sessionId);
+    db.prepare("delete from sessions where id = ?").run(sessionId);
+    if (session.taskId) {
+      const other = db.prepare("select count(*) as cnt from sessions where task_id = ?").get(session.taskId);
+      if (!other || other.cnt === 0) {
+        db.prepare("delete from tasks where id = ?").run(session.taskId);
+      }
+    }
+    return { success: true };
+  } catch (err) {
+    console.error("[desktop bridge] deleteSession error:", err.message);
+    return { success: false, message: err.message };
+  }
+}
+
 function createCommand(sessionId, commandKind) {
   if (!VALID_COMMANDS.has(commandKind)) {
     throw new Error("This daemon build only supports approve/reject commands. Stop and resume require runner integration.");
@@ -287,6 +309,10 @@ wss.on("connection", (socket) => {
         const { taskId } = createTask(message.payload || {});
         if (message.requestId) pendingRequests.set(taskId, message.requestId);
         socket.send(JSON.stringify({ type: "accepted", requestId: message.requestId, taskId }));
+        broadcastState();
+      } else if (message.commandType === "delete") {
+        deleteSession(message.sessionId);
+        socket.send(JSON.stringify({ type: "session.deleted", sessionId: message.sessionId }));
         broadcastState();
       } else {
         createCommand(message.sessionId, message.commandType);

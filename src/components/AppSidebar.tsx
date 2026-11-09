@@ -101,11 +101,34 @@ export function AppSidebar({
   const pendingReviewCount = sessions.filter((s) => s.status === "awaiting_approval").length;
   const runningTasksCount = sessions.filter((s) => s.status === "running" || s.status === "queued").length;
 
-  const recentItems = [
-    { id: "saas", name: "SaaS Dashboard" },
-    { id: "ml", name: "ML Pipeline" },
-    { id: "taskflow", name: "TaskFlow Mobile" },
-  ];
+  // Build recent items from real sessions + projects (most recent 5 by createdAt)
+  const recentItems = (() => {
+    if (sessions.length === 0 && projects.length === 0) return [];
+    // Prefer sessions sorted by createdAt desc, pick unique project names
+    const seen = new Set<string>();
+    const items: { id: string; name: string; sessionId?: string }[] = [];
+    const sorted = [...sessions].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+    for (const s of sorted) {
+      const key = (s.projectName || s.repo || s.id).toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        items.push({ id: s.projectId || s.id, name: s.projectName || s.repo || "Unknown", sessionId: s.id });
+      }
+      if (items.length >= 5) break;
+    }
+    // Fill remaining slots from projects if needed
+    for (const p of projects) {
+      const key = p.name.toLowerCase();
+      if (!seen.has(key)) {
+        seen.add(key);
+        items.push({ id: p.id, name: p.name });
+      }
+      if (items.length >= 5) break;
+    }
+    return items;
+  })();
 
   return (
     <aside className={`app-sidebar ${isCollapsed ? "collapsed" : ""}`}>
@@ -303,16 +326,26 @@ export function AppSidebar({
           <div className="sidebar-group recents-group">
             <span className="group-label">RECENTS</span>
             <div className="recents-list">
-              {recentItems.map((item) => (
-                <button
-                  key={item.id}
-                  className="recent-item-btn"
-                  onClick={() => onNavigate("projects")}
-                >
-                  <FolderIcon size={13} color="#666C7E" />
-                  <span className="recent-name">{item.name}</span>
-                </button>
-              ))}
+              {recentItems.length === 0 ? (
+                <span className="recents-empty">No recent projects</span>
+              ) : (
+                recentItems.map((item) => (
+                  <button
+                    key={item.id}
+                    className="recent-item-btn"
+                    onClick={() => {
+                      if (item.sessionId) {
+                        onNavigate("tasks", item.sessionId);
+                      } else {
+                        onNavigate("projects", item.id);
+                      }
+                    }}
+                  >
+                    <FolderIcon size={13} color="#666C7E" />
+                    <span className="recent-name">{item.name}</span>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         )}

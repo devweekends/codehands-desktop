@@ -145,9 +145,12 @@ export default function App() {
             });
             cloudApi.setToken(storedToken);
           }
+        } else {
+          setIsAuthModalOpen(true);
         }
       } catch (err) {
         console.error("Failed to read token from keychain:", err);
+        setIsAuthModalOpen(true);
       }
     }
     loadStoredAuth();
@@ -288,8 +291,16 @@ export default function App() {
     });
   };
 
-  // Session Action Commands (Approve, Reject, Stop, Resume)
+  // Session Action Commands (Approve, Reject, Stop, Resume, Delete)
   const handleSessionCommand = (sessionId: string, commandKind: CommandKind) => {
+    if ((commandKind as string) === "delete") {
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      return sendCommand({
+        type: "command",
+        commandType: "delete",
+        sessionId,
+      });
+    }
     return sendCommand({
       type: "command",
       commandType: commandKind,
@@ -322,6 +333,8 @@ export default function App() {
     }
     setIsAuthModalOpen(false);
     setIsTokenExpired(false);
+    // Enter the project workspace right after sign in
+    setCurrentView("projects");
   };
 
   const handleLogout = async () => {
@@ -341,13 +354,20 @@ export default function App() {
     setTheme((t) => (t === "dark" ? "light" : "dark"));
   };
 
+  const finishSplash = useCallback(() => {
+    setShowSplash(false);
+    if (!auth?.deviceToken && !auth?.userId) {
+      setIsAuthModalOpen(true);
+    }
+  }, [auth]);
+
   const userDisplayName = resolveUserDisplayName(auth);
   const userDisplayEmail = resolveUserEmail(auth);
   const isLoggedIn = Boolean(auth?.deviceToken || auth?.userId);
 
   return (
     <div className={`app-shell theme-${theme}`}>
-      {showSplash && <SplashScreen minDurationMs={1200} onFinish={() => setShowSplash(false)} />}
+      {showSplash && <SplashScreen minDurationMs={1200} onFinish={finishSplash} />}
 
       <AppSidebar
         currentView={currentView}
@@ -379,7 +399,13 @@ export default function App() {
           onToggleTheme={toggleTheme}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onNewTask={() => setCurrentView("new")}
-          notificationCount={sessions.filter((s) => s.status === "awaiting_approval").length || 3}
+          notificationCount={sessions.filter((s) => s.status === "awaiting_approval" || s.status === "failed").length}
+          sessions={sessions}
+          onSelectSession={(id) => {
+            setActiveSessionId(id);
+            setCurrentView("tasks");
+          }}
+          onOpenReview={() => setCurrentView("review")}
         />
 
         {notice && (
@@ -463,7 +489,9 @@ export default function App() {
 
           {currentView === "runtime" && <RuntimeLogsPage />}
 
-          {currentView === "analytics" && <AnalyticsView />}
+          {currentView === "analytics" && (
+            <AnalyticsView sessions={sessions} projects={projects} />
+          )}
 
           {currentView === "integrations" && <IntegrationsPage />}
 
@@ -476,6 +504,8 @@ export default function App() {
               onLogout={handleLogout}
               theme={theme}
               onToggleTheme={toggleTheme}
+              onOpenAuth={() => setIsAuthModalOpen(true)}
+              onAuthSuccess={handleAuthSuccess}
             />
           )}
 
@@ -507,9 +537,10 @@ export default function App() {
       <AuthModal
         isOpen={isAuthModalOpen}
         isExpiredPrompt={isTokenExpired}
+        isRequired={!isLoggedIn}
         onSuccess={handleAuthSuccess}
         onClose={() => {
-          if (!isTokenExpired) setIsAuthModalOpen(false);
+          if (!isTokenExpired && isLoggedIn) setIsAuthModalOpen(false);
         }}
       />
     </div>
