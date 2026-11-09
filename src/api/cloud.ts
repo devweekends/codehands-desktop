@@ -1,6 +1,6 @@
 // Client for the C3 Cloud API (codehands-backend, Memoona's real server)
 // Real server runs on port 3000. Override with VITE_CLOUD_URL env var.
-import type { CloudAuth, AuthResult, CloudDevice } from "@codehands/contracts";
+import type { AuthResult, CloudDevice } from "@codehands/contracts";
 
 // Vite exposes env vars prefixed with VITE_ at build time.
 // In dev: set VITE_CLOUD_URL=http://localhost:3000 in desktop/.env
@@ -9,7 +9,7 @@ const DEFAULT_CLOUD_URL =
   (typeof import.meta !== "undefined" && (import.meta as any).env?.VITE_CLOUD_URL) ||
   "http://localhost:3000";
 
-export class CloudApiClient implements CloudAuth {
+export class CloudApiClient {
   private baseUrl: string;
   private token: string | null = null;
   private onTokenExpired?: () => void;
