@@ -26,17 +26,8 @@ interface ModernWorkspaceProps {
   connected?: boolean;
 }
 
-interface StagedFile {
-  id: string;
-  name: string;
-  path: string;
-  status: "M" | "A" | "D";
-  staged: boolean;
-  commentsCount?: number;
-  addedLines: number;
-  removedLines: number;
-  diffText: string;
-}
+import type { StagedFile } from "../utils/dynamicDiff";
+import { getSessionFiles, getSessionCommitMessage } from "../utils/dynamicDiff";
 
 interface InlineComment {
   id: string;
@@ -47,186 +38,6 @@ interface InlineComment {
   body: string;
   type: "question" | "security" | "warning";
 }
-
-const SAMPLE_STAGED_FILES: StagedFile[] = [
-  {
-    id: "f1",
-    name: "AuthProvider.tsx",
-    path: "src/auth",
-    status: "M",
-    staged: true,
-    commentsCount: 1,
-    addedLines: 24,
-    removedLines: 6,
-    diffText: `@@ -15,10 +15,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
--  const [token, setToken] = useState<string | null>(null);
-+  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
-+  const [user, setUser] = useState<User | null>(null);
-+  const [isLoading, setIsLoading] = useState(false);
-
-+  useEffect(() => {
-+    if (token) {
-+      authApi.me().then(setUser).catch(() => setToken(null));
-+    }
-+  }, [token]);`,
-  },
-  {
-    id: "f2",
-    name: "useAuth.ts",
-    path: "src/auth",
-    status: "M",
-    staged: true,
-    addedLines: 18,
-    removedLines: 4,
-    diffText: `@@ -3,6 +3,14 @@ export function useAuth() {
--  return useContext(AuthContext);
-+  const ctx = useContext(AuthContext);
-+  if (!ctx) {
-+    throw new Error("useAuth must be used within an AuthProvider");
-+  }
-+  return ctx;
- }`,
-  },
-  {
-    id: "f3",
-    name: "LoginForm.tsx",
-    path: "src/components",
-    status: "A",
-    staged: true,
-    addedLines: 64,
-    removedLines: 0,
-    diffText: `@@ -0,0 +1,24 @@
-+import React, { useState } from "react";
-+import { useAuth } from "../auth/useAuth";
-+
-+export function LoginForm() {
-+  const { login } = useAuth();
-+  const [email, setEmail] = useState("");
-+  const [password, setPassword] = useState("");
-+
-+  return (
-+    <form onSubmit={(e) => { e.preventDefault(); login({ email, password }); }}>
-+      <input type="email" value={email} onChange={e => setEmail(e.target.value)} />
-+      <input type="password" value={password} onChange={e => setPassword(e.target.value)} />
-+      <button type="submit">Sign In</button>
-+    </form>
-+  );
-+}`,
-  },
-  {
-    id: "f4",
-    name: "useSession.ts",
-    path: "src/hooks",
-    status: "A",
-    staged: true,
-    addedLines: 32,
-    removedLines: 0,
-    diffText: `@@ -0,0 +1,14 @@
-+import { useEffect, useState } from "react";
-+
-+export function useSession() {
-+  const [session, setSession] = useState(null);
-+  useEffect(() => {
-+    fetch("/api/session").then(r => r.json()).then(setSession);
-+  }, []);
-+  return session;
-+}`,
-  },
-  {
-    id: "f5",
-    name: "auth.ts",
-    path: "src/api",
-    status: "M",
-    staged: false,
-    commentsCount: 2,
-    addedLines: 48,
-    removedLines: 12,
-    diffText: `@@ -1,4 +1,7 @@
-- import type { LoginResponse } from '../types/user';
-+ import type { LoginResponse } from '../types/user';
-+ import type { TokenPair, User } from '../types/user';
-
-- const API_URL = process.env.API_URL;
-+ const API_URL = import.meta.env.VITE_API_URL;
-+ const TOKEN_KEY = 'auth_token';
-+ const REFRESH_KEY = 'refresh_token';
-
-@@ -5,3 +8,20 @@ export const authApi = {
--   // TODO: implement auth methods
-+   async login(email: string, password: string): Promise<LoginResponse> {
-+     const response = await fetch(\`\${API_URL}/auth/login\`, {
-+       method: 'POST',
-+       headers: { 'Content-Type': 'application/json' },
-+       body: JSON.stringify({ email, password }),
-+     });
-+     if (!response.ok) throw new Error('Login failed');
-+     const data = await response.json();
-+     localStorage.setItem(TOKEN_KEY, data.tokens.access);
-+     localStorage.setItem(REFRESH_KEY, data.tokens.refresh);
-+     return data;
-+   },
-+   async logout(): Promise<void> {
-+     await fetch(\`\${API_URL}/auth/logout\`, { method: 'POST' });
-+     localStorage.removeItem(TOKEN_KEY);
-+     localStorage.removeItem(REFRESH_KEY);
-+   },
-+ };`,
-  },
-  {
-    id: "f6",
-    name: "user.ts",
-    path: "src/types",
-    status: "A",
-    staged: false,
-    addedLines: 14,
-    removedLines: 0,
-    diffText: `@@ -0,0 +1,14 @@
-+export interface User {
-+  id: string;
-+  email: string;
-+  name: string;
-+  avatarUrl?: string;
-+}
-
-+export interface TokenPair {
-+  access: string;
-+  refresh: string;
-+}`,
-  },
-  {
-    id: "f7",
-    name: "withAuth.ts",
-    path: "src/middleware",
-    status: "A",
-    staged: false,
-    addedLines: 22,
-    removedLines: 0,
-    diffText: `@@ -0,0 +1,18 @@
-+import type { Request, Response, NextFunction } from "express";
-
-+export function withAuth(req: Request, res: Response, next: NextFunction) {
-+  const header = req.headers.authorization;
-+  if (!header?.startsWith("Bearer ")) {
-+    return res.status(401).json({ error: "Unauthorized" });
-+  }
-+  next();
-+}`,
-  },
-  {
-    id: "f8",
-    name: "README.md",
-    path: ".",
-    status: "M",
-    staged: false,
-    addedLines: 12,
-    removedLines: 2,
-    diffText: `@@ -10,3 +10,13 @@
--## Getting Started
-+## Authentication Module
-+The workspace now includes token rotation and local OS keychain sync.
-+Run npm run test to verify coverage.`,
-  },
-];
 
 const SAMPLE_COMMENTS: InlineComment[] = [
   {
@@ -269,6 +80,7 @@ export function ModernWorkspace({
 }: ModernWorkspaceProps) {
   const currentSession =
     sessions.find((s) => s.id === activeSessionId) || sessions[0];
+  const currentEvents = currentSession ? events[currentSession.id] || [] : [];
 
   const [taskFilter, setTaskFilter] = useState<"all" | "active" | "review">("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
@@ -291,15 +103,42 @@ export function ModernWorkspace({
   const [isFilesCollapsed, setIsFilesCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
 
-  const [filesList, setFilesList] = useState<StagedFile[]>(SAMPLE_STAGED_FILES);
-  const [selectedFileId, setSelectedFileId] = useState<string>("f5");
+  const [filesList, setFilesList] = useState<StagedFile[]>(() =>
+    currentSession ? getSessionFiles(currentSession, currentEvents) : []
+  );
+  const [selectedFileId, setSelectedFileId] = useState<string>(() =>
+    currentSession ? getSessionFiles(currentSession, currentEvents)[0]?.id || "" : ""
+  );
   const [diffMode, setDiffMode] = useState<"unified" | "split">("split");
-  const [commitMessage, setCommitMessage] = useState(
-    "feat(auth): implement token authentication & handlers"
+  const [commitMessage, setCommitMessage] = useState<string>(() =>
+    getSessionCommitMessage(currentSession)
   );
   const [comments, setComments] = useState<InlineComment[]>(SAMPLE_COMMENTS);
   const [agentInput, setAgentInput] = useState("");
   const [logFilter, setLogFilter] = useState<"ALL" | "INFO" | "WARN" | "ERROR">("ALL");
+
+  // Sync dynamic files and commit message whenever active session, diff, status or prompt changes
+  useEffect(() => {
+    if (!currentSession) {
+      setFilesList([]);
+      setSelectedFileId("");
+      return;
+    }
+    const sessionFiles = getSessionFiles(currentSession, currentEvents);
+    setFilesList(sessionFiles);
+    if (sessionFiles.length > 0) {
+      setSelectedFileId(sessionFiles[0].id);
+    } else {
+      setSelectedFileId("");
+    }
+    setCommitMessage(getSessionCommitMessage(currentSession));
+  }, [
+    currentSession?.id,
+    currentSession?.diff,
+    currentSession?.status,
+    currentSession?.prompt,
+    currentEvents.length,
+  ]);
 
   // Live timer for execution tab
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -408,8 +247,6 @@ export function ModernWorkspace({
   const unstageAll = () => {
     setFilesList((prev) => prev.map((f) => ({ ...f, staged: false })));
   };
-
-  const currentEvents = currentSession ? events[currentSession.id] || [] : [];
 
   const filteredSessions = sessions.filter((s) => {
     if (projectFilter !== "all") {
@@ -540,7 +377,7 @@ export function ModernWorkspace({
                   className={`filter-pill ${taskFilter === "all" ? "active" : ""}`}
                   onClick={() => setTaskFilter("all")}
                 >
-                  All ({filteredSessions.length})
+                  All ({sessions.length})
                 </button>
                 <button
                   className={`filter-pill ${taskFilter === "active" ? "active" : ""}`}
@@ -603,7 +440,7 @@ export function ModernWorkspace({
 
                       {(isFailedItem || isDone) && (
                         <button
-                          className="btn-task-delete-icon"
+                          className={`btn-task-delete-icon${isFailedItem ? " failed" : ""}`}
                           title="Delete task from history"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1143,6 +980,23 @@ export function ModernWorkspace({
                       {stagedFiles.length + unstagedFiles.length} files
                     </span>
                   </div>
+                ) : filesList.length === 0 ? (
+                  <div className="files-empty-notice">
+                    <span className="empty-title">
+                      {currentSession?.status === "queued"
+                        ? "Task Queued"
+                        : currentSession?.status === "running"
+                        ? "Agent Running"
+                        : "No Files Modified"}
+                    </span>
+                    <small>
+                      {currentSession?.status === "queued"
+                        ? "Waiting for runner execution..."
+                        : currentSession?.status === "running"
+                        ? "Synthesizing code diffs..."
+                        : "No changes staged."}
+                    </small>
+                  </div>
                 ) : (
                   <>
                     <div className="files-section-block">
@@ -1261,6 +1115,10 @@ export function ModernWorkspace({
                     <span>
                       {selectedFile
                         ? `${selectedFile.path}/${selectedFile.name}`
+                        : currentSession?.status === "queued"
+                        ? "Task Queued (No files yet)"
+                        : currentSession?.status === "running"
+                        ? "Execution In Progress"
                         : "No file selected"}
                     </span>
                   </div>
@@ -1293,33 +1151,55 @@ export function ModernWorkspace({
                   </div>
                 </div>
 
-                <div className="diff-code-scroll">
-                  <pre className="diff-pre-block">
-                    {selectedFile.diffText.split("\n").map((line, idx) => {
-                      const isChunkHeader = line.startsWith("@@");
-                      const isAdded = line.startsWith("+") && !isChunkHeader;
-                      const isRemoved = line.startsWith("-") && !isChunkHeader;
+                {selectedFile ? (
+                  <div className="diff-code-scroll">
+                    <pre className="diff-pre-block">
+                      {selectedFile.diffText.split("\n").map((line, idx) => {
+                        const isChunkHeader = line.startsWith("@@");
+                        const isAdded = line.startsWith("+") && !isChunkHeader;
+                        const isRemoved = line.startsWith("-") && !isChunkHeader;
 
-                      return (
-                        <div
-                          key={idx}
-                          className={`diff-line-row ${
-                            isChunkHeader
-                              ? "chunk-header"
-                              : isAdded
-                              ? "added"
-                              : isRemoved
-                              ? "removed"
-                              : "context"
-                          }`}
-                        >
-                          <span className="line-num">{idx + 1}</span>
-                          <span className="line-code">{line}</span>
-                        </div>
-                      );
-                    })}
-                  </pre>
-                </div>
+                        return (
+                          <div
+                            key={idx}
+                            className={`diff-line-row ${
+                              isChunkHeader
+                                ? "chunk-header"
+                                : isAdded
+                                ? "added"
+                                : isRemoved
+                                ? "removed"
+                                : "context"
+                            }`}
+                          >
+                            <span className="line-num">{idx + 1}</span>
+                            <span className="line-code">{line}</span>
+                          </div>
+                        );
+                      })}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="diff-empty-viewer">
+                    <div className="empty-viewer-card">
+                      <BoxIcon size={36} color="#27B7F5" />
+                      <h3>
+                        {currentSession?.status === "queued"
+                          ? "Task Is Queued"
+                          : currentSession?.status === "running"
+                          ? "Execution In Progress"
+                          : "No Changes Recorded"}
+                      </h3>
+                      <p>
+                        {currentSession?.status === "queued"
+                          ? "This task is waiting in the runner queue. When execution begins, files and code diffs will appear here automatically."
+                          : currentSession?.status === "running"
+                          ? "The agent is executing code changes and running AST checks. Diffs will populate when ready."
+                          : "No file modifications were recorded for this task."}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Right Subcolumn: Inline Comments */}
@@ -1407,12 +1287,27 @@ export function ModernWorkspace({
                   const p = (ev.payload || {}) as Record<string, any>;
                   const isErr = ev.eventType.includes("fail") || ev.eventType.includes("error");
                   const isWrn = ev.eventType.includes("warn");
+                  // Build summary: prefer human-readable fields, fall back to JSON
                   const summaryText =
                     p.reason ||
                     p.summary ||
                     p.text ||
                     p.command ||
-                    (p.path ? `path: ${p.path}` : JSON.stringify(p));
+                    p.message ||
+                    (p.path ? `${p.path}` : null) ||
+                    (p.file ? `${p.file}` : null) ||
+                    (p.files && Array.isArray(p.files) && p.files.length > 0
+                      ? p.files.join(", ")
+                      : null) ||
+                    JSON.stringify(p);
+
+                  // Collect file paths from various payload shapes
+                  const filePaths: string[] = [];
+                  if (p.files && Array.isArray(p.files)) filePaths.push(...p.files);
+                  if (p.path && !p.files) filePaths.push(p.path);
+                  if (p.file && !p.files) filePaths.push(p.file);
+                  if (p.created && Array.isArray(p.created)) filePaths.push(...p.created);
+                  if (p.modified && Array.isArray(p.modified)) filePaths.push(...p.modified);
 
                   return (
                     <div key={i} className="log-entry-row">
@@ -1422,6 +1317,15 @@ export function ModernWorkspace({
                       </span>
                       <span className="log-type">{ev.eventType}</span>
                       <span className="log-summary">{summaryText}</span>
+                      {filePaths.length > 0 && (
+                        <div className="log-files-list">
+                          {filePaths.map((f: string, fi: number) => (
+                            <span key={fi} className="log-file-pill" title={f}>
+                              {f.replace(/\\/g, "/").split("/").pop()}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   );
                 })
