@@ -81,6 +81,10 @@ export function ReviewQueueView({ sessions, onCommand, onOpenSession }: ReviewQu
         <div className="review-queue-body">
           {/* Left List */}
           <div className="review-items-list">
+            <div className="review-list-header">
+              <span className="review-list-title">PENDING REVIEWS</span>
+              <span className="review-list-badge">{realAwaiting.length}</span>
+            </div>
             {realAwaiting.map((s) => {
               const isSelected = s.id === (selectedSession?.id || activeReviewId);
               return (
@@ -124,15 +128,11 @@ export function ReviewQueueView({ sessions, onCommand, onOpenSession }: ReviewQu
                     <div className="eyebrow-tag">HUMAN DECISION REQUIRED</div>
                     <h3>{selectedSession.title || selectedSession.prompt}</h3>
                     <div className="meta-chain">
-                      <span>{selectedSession.projectName || selectedSession.repo?.split("\\").pop() || "sample-repo"}</span>
-                      <span>·</span>
-                      <span>⎇ {selectedSession.branch || "main"}</span>
-                      <span>·</span>
-                      <span>Agent: {selectedSession.agent}</span>
-                      <span>·</span>
-                      <span>Model: {selectedSession.model}</span>
-                      <span>·</span>
-                      <span>Cost: ${(selectedSession.costUsd || 0).toFixed(2)}</span>
+                      <span className="meta-badge">📁 {selectedSession.projectName || selectedSession.repo?.split("\\").pop() || "sample-repo"}</span>
+                      <span className="meta-badge">⎇ {selectedSession.branch || "main"}</span>
+                      <span className="meta-badge">🤖 {selectedSession.agent}</span>
+                      <span className="meta-badge">⚡ {selectedSession.model}</span>
+                      <span className="meta-badge">💰 ${(selectedSession.costUsd || 0).toFixed(2)}</span>
                     </div>
                   </div>
 

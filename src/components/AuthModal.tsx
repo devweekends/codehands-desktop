@@ -41,26 +41,43 @@ export function AuthModal({ isOpen, isExpiredPrompt, isRequired = false, onSucce
   const handleSocialAuth = async (provider: "github" | "google") => {
     setLoading(true);
     setError(null);
-    const cleanEmail = provider === "github" ? "developer@github.com" : "developer@gmail.com";
-    const derivedName = provider === "github" ? "GitHub Developer" : "Google Developer";
-
-    const enriched: AuthResult = {
-      userId: `oauth-${provider}-${Date.now()}`,
-      name: derivedName,
-      email: cleanEmail,
-      device: { id: "desktop-client-windows", name: "Windows Client", createdAt: new Date().toISOString() },
-      deviceToken: `oauth-token-${provider}-${Date.now()}`,
-    };
+    const fallbackEmail = email.trim() || (provider === "github" ? "developer@github.com" : "developer@gmail.com");
+    const fallbackName = name.trim() || (provider === "github" ? "GitHub Developer" : "Google Developer");
 
     try {
-      await saveDeviceToken(enriched.deviceToken);
-      localStorage.setItem("codehands_user_profile", JSON.stringify({ name: derivedName, email: cleanEmail }));
-    } catch {
-      // ignore
-    }
+      let enriched: AuthResult;
+      try {
+        enriched = await cloudApi.socialAuth({
+          provider,
+          email: fallbackEmail,
+          name: fallbackName,
+          providerId: `${provider}_user_${Date.now()}`,
+        });
+      } catch (cloudErr) {
+        // Local offline fallback if cloud server is unavailable
+        enriched = {
+          userId: `oauth-${provider}-${Date.now()}`,
+          name: fallbackName,
+          email: fallbackEmail,
+          device: { id: "desktop-client-windows", name: "Windows Client", createdAt: new Date().toISOString() },
+          deviceToken: `oauth-token-${provider}-${Date.now()}`,
+        };
+      }
 
-    setLoading(false);
-    onSuccess(enriched);
+      await saveDeviceToken(enriched.deviceToken);
+      localStorage.setItem("codehands_user_profile", JSON.stringify({
+        name: enriched.name || fallbackName,
+        email: enriched.email || fallbackEmail,
+        provider,
+      }));
+
+      onSuccess(enriched);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "";
+      setError(message || `${provider} authentication failed. Please try again.`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

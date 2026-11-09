@@ -58,7 +58,7 @@ interface AppSidebarProps {
   onLogout: () => void;
   onOpenCommandPalette: () => void;
   isCollapsed: boolean;
-  onToggleCollapse: () => void;
+  onToggleCollapse?: () => void;
   theme?: "dark" | "light";
   onToggleTheme?: () => void;
 }
@@ -77,7 +77,7 @@ export function AppSidebar({
   onLogout,
   onOpenCommandPalette,
   isCollapsed,
-  onToggleCollapse,
+  onToggleCollapse: _onToggleCollapse,
   theme = "dark",
   onToggleTheme,
 }: AppSidebarProps) {
@@ -219,9 +219,12 @@ export function AppSidebar({
               onClick={() => onNavigate("review")}
               title="Review Queue"
             >
-              <span className="nav-btn-icon"><ReviewIcon size={15} /></span>
+              <span className="nav-btn-icon">
+                <ReviewIcon size={15} />
+                {isCollapsed && pendingReviewCount > 0 && <span className="collapsed-notif-dot" />}
+              </span>
               {!isCollapsed && <span className="nav-btn-label">Review Queue</span>}
-              {pendingReviewCount > 0 && (
+              {!isCollapsed && pendingReviewCount > 0 && (
                 <span className="nav-btn-badge alert">{pendingReviewCount}</span>
               )}
             </button>
@@ -353,17 +356,11 @@ export function AppSidebar({
 
       {/* Sidebar Footer */}
       <div className="sidebar-footer">
-        <div className="sidebar-collapse-row">
-          <button
-            className="btn-collapse"
-            onClick={onToggleCollapse}
-            title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <span>{isCollapsed ? ">" : "<"}</span>
-            {!isCollapsed && <span>Collapse</span>}
-          </button>
-          {!isCollapsed && <span className="app-version">v0.2.0</span>}
-        </div>
+        {!isCollapsed && (
+          <div className="sidebar-version-row">
+            <span className="app-version">v0.2.0</span>
+          </div>
+        )}
 
         <div className={`daemon-status-bar ${connected && daemonState === "running" ? "online" : "offline"}`}>
           <span className="status-indicator-dot" />

@@ -101,12 +101,56 @@ export default function App() {
 
   // Navigation & Shell state
   const [currentView, setCurrentView] = useState<NavView>("overview");
+  const [history, setHistory] = useState<NavView[]>(["overview"]);
+  const [historyIndex, setHistoryIndex] = useState(0);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [showSplash, setShowSplash] = useState(true);
+
+  // Global Ctrl+B shortcut to toggle sidebar
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        // Do not intercept if user is typing in input or textarea
+        const target = e.target as HTMLElement | null;
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+          return;
+        }
+        e.preventDefault();
+        setIsSidebarCollapsed((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const navigateTo = useCallback((view: NavView) => {
+    setCurrentView(view);
+    setHistory((prev) => {
+      const next = prev.slice(0, historyIndex + 1);
+      return [...next, view];
+    });
+    setHistoryIndex((prev) => prev + 1);
+  }, [historyIndex]);
+
+  const handleBack = useCallback(() => {
+    if (historyIndex > 0) {
+      const targetIndex = historyIndex - 1;
+      setHistoryIndex(targetIndex);
+      setCurrentView(history[targetIndex]);
+    }
+  }, [history, historyIndex]);
+
+  const handleForward = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const targetIndex = historyIndex + 1;
+      setHistoryIndex(targetIndex);
+      setCurrentView(history[targetIndex]);
+    }
+  }, [history, historyIndex]);
 
   // Auth & OS Keychain state (COD-291)
   const [auth, setAuth] = useState<AuthResult | null>(null);
@@ -200,7 +244,7 @@ export default function App() {
             if (msg.requestId && msg.requestId === pendingRequest.current) {
               pendingRequest.current = null;
               setActiveSessionId(s.id);
-              setCurrentView("tasks");
+              navigateTo("tasks");
             }
           }
 
@@ -215,7 +259,7 @@ export default function App() {
 
           if (msg.type === "accepted") {
             setNotice("Task added to the local daemon queue.");
-            setCurrentView("tasks");
+            navigateTo("tasks");
           }
 
           if (msg.type === "error") {
@@ -250,7 +294,7 @@ export default function App() {
         setIsCommandPaletteOpen((prev) => !prev);
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
-        setCurrentView("new");
+        navigateTo("new");
       }
     };
     window.addEventListener("keydown", handleShortcut);
@@ -334,7 +378,7 @@ export default function App() {
     setIsAuthModalOpen(false);
     setIsTokenExpired(false);
     // Enter the project workspace right after sign in
-    setCurrentView("projects");
+    navigateTo("projects");
   };
 
   const handleLogout = async () => {
@@ -372,7 +416,7 @@ export default function App() {
       <AppSidebar
         currentView={currentView}
         onNavigate={(view, extraId) => {
-          setCurrentView(view);
+          navigateTo(view);
           if (extraId) setActiveSessionId(extraId);
         }}
         sessions={sessions}
@@ -398,14 +442,20 @@ export default function App() {
           theme={theme}
           onToggleTheme={toggleTheme}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-          onNewTask={() => setCurrentView("new")}
+          onNewTask={() => navigateTo("new")}
           notificationCount={sessions.filter((s) => s.status === "awaiting_approval" || s.status === "failed").length}
           sessions={sessions}
           onSelectSession={(id) => {
             setActiveSessionId(id);
-            setCurrentView("tasks");
+            navigateTo("tasks");
           }}
-          onOpenReview={() => setCurrentView("review")}
+          onOpenReview={() => navigateTo("review")}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
+          canGoBack={historyIndex > 0}
+          canGoForward={historyIndex < history.length - 1}
+          onNavigateBack={handleBack}
+          onNavigateForward={handleForward}
         />
 
         {notice && (
@@ -422,18 +472,18 @@ export default function App() {
               projects={projects}
               onOpenSession={(id) => {
                 setActiveSessionId(id);
-                setCurrentView("tasks");
+                navigateTo("tasks");
               }}
               onOpenProject={(projId) => {
                 setSelectedProjectId(projId);
-                setCurrentView("projects");
+                navigateTo("projects");
               }}
               onNewTask={(repoPath) => {
                 if (repoPath) setInitialRepo(repoPath);
-                setCurrentView("new");
+                navigateTo("new");
               }}
               onNewProject={() => {
-                setCurrentView("projects");
+                navigateTo("projects");
               }}
             />
           )}
@@ -445,11 +495,11 @@ export default function App() {
               selectedProjectId={selectedProjectId}
               onOpenSession={(id) => {
                 setActiveSessionId(id);
-                setCurrentView("tasks");
+                navigateTo("tasks");
               }}
               onNewTask={(repoPath) => {
                 if (repoPath) setInitialRepo(repoPath);
-                setCurrentView("new");
+                navigateTo("new");
               }}
             />
           )}
@@ -459,7 +509,7 @@ export default function App() {
               sessions={sessions}
               activeSessionId={activeSessionId}
               onSelectSession={(id) => setActiveSessionId(id)}
-              onNewTask={() => setCurrentView("new")}
+              onNewTask={() => navigateTo("new")}
               events={events}
               onCommand={handleSessionCommand}
               connected={connected}
@@ -474,7 +524,7 @@ export default function App() {
               onCommand={handleSessionCommand}
               onOpenSession={(id) => {
                 setActiveSessionId(id);
-                setCurrentView("tasks");
+                navigateTo("tasks");
               }}
             />
           )}
@@ -514,7 +564,7 @@ export default function App() {
               connected={connected}
               initialRepo={initialRepo}
               onStart={handleStartTask}
-              onCancel={() => setCurrentView("overview")}
+              onCancel={() => navigateTo("overview")}
             />
           )}
         </main>
@@ -529,8 +579,8 @@ export default function App() {
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
-        onNavigate={(view) => setCurrentView(view as NavView)}
-        onNewTask={() => setCurrentView("new")}
+        onNavigate={(view) => navigateTo(view as NavView)}
+        onNewTask={() => navigateTo("new")}
         toggleTheme={toggleTheme}
       />
 

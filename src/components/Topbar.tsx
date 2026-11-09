@@ -14,6 +14,12 @@ interface TopbarProps {
   sessions?: DesktopSession[];
   onSelectSession?: (id: string) => void;
   onOpenReview?: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
+  onNavigateBack?: () => void;
+  onNavigateForward?: () => void;
 }
 
 const VIEW_TITLES: Record<NavView, string> = {
@@ -46,6 +52,12 @@ export function Topbar({
   sessions = [],
   onSelectSession,
   onOpenReview,
+  isSidebarCollapsed = false,
+  onToggleSidebar,
+  canGoBack = false,
+  canGoForward = false,
+  onNavigateBack,
+  onNavigateForward,
 }: TopbarProps) {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -74,6 +86,43 @@ export function Topbar({
   return (
     <header className="topbar">
       <div className="topbar-left">
+        {onToggleSidebar && (
+          <button
+            className={`topbar-toggle-sidebar-btn ${isSidebarCollapsed ? "collapsed" : ""}`}
+            onClick={onToggleSidebar}
+            title="Toggle Sidebar (Ctrl+B)"
+            aria-label="Toggle Sidebar (Ctrl+B)"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="9" y1="3" x2="9" y2="21" />
+            </svg>
+          </button>
+        )}
+
+        {(onNavigateBack || onNavigateForward) && (
+          <div className="topbar-history-arrows">
+            <button
+              className="topbar-arrow-btn"
+              onClick={onNavigateBack}
+              disabled={!canGoBack}
+              title="Back"
+              aria-label="Back"
+            >
+              ←
+            </button>
+            <button
+              className="topbar-arrow-btn"
+              onClick={onNavigateForward}
+              disabled={!canGoForward}
+              title="Forward"
+              aria-label="Forward"
+            >
+              →
+            </button>
+          </div>
+        )}
+
         <div className="breadcrumbs">
           <span className="crumb-root">CodeHands</span>
           <span className="crumb-sep">/</span>

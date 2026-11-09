@@ -60,6 +60,26 @@ export class CloudApiClient implements CloudAuth {
     return (await res.json()) as AuthResult;
   }
 
+  async socialAuth(input: {
+    provider: "github" | "google";
+    email?: string;
+    name?: string;
+    providerId?: string;
+    avatarUrl?: string;
+    githubCode?: string;
+  }): Promise<AuthResult> {
+    const res = await this.authFetch("/auth/social", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as any).error ?? (body as any).message ?? `Social authentication failed: ${res.statusText}`);
+    }
+    return (await res.json()) as AuthResult;
+  }
+
   // Real server (Memoona's auth.ts) requires Authorization header on logout
   async logOut(): Promise<{ ok: true }> {
     const res = await fetch(`${this.baseUrl}/auth/logout`, {

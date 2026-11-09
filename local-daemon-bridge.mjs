@@ -187,9 +187,26 @@ function getRunnerStatus() {
   }
 }
 
+const syncedSessions = new Set();
+async function syncSessionToCloud(session) {
+  if (!session || syncedSessions.has(session.id + ':' + session.status)) return;
+  syncedSessions.add(session.id + ':' + session.status);
+  try {
+    await fetch("http://localhost:3000/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: session.id, status: session.status }),
+      signal: AbortSignal.timeout(3000),
+    });
+  } catch {
+    // Ignore when cloud backend is offline
+  }
+}
+
 function broadcastState() {
   try {
     lastState = readState();
+    for (const s of (lastState.sessions || [])) { syncSessionToCloud(s); }
     const message = JSON.stringify(lastState);
     for (const client of wss.clients) {
       if (client.readyState === 1) client.send(message);
@@ -287,8 +304,13 @@ function createCommand(sessionId, commandKind) {
     stop: "running",
     resume: "stopped",
   }[commandKind];
-  const allowed = session.status === expectedStatus;
+  const allowed = commandKind === "stop"
+    ? (session.status === "running" || session.status === "queued")
+    : session.status === expectedStatus;
   if (!allowed) throw new Error(`Cannot ${commandKind} a session while it is ${session.status}.`);
+  if (commandKind === "stop" && session.status === "queued") {
+    db.prepare("update sessions set status = 'stopped', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') where id = ?").run(session.id);
+  }
   db.prepare("insert into commands (id, session_id, project_id, kind, created_by) values (?, ?, ?, ?, ?)")
     .run(randomUUID(), session.id, session.projectId, commandKind, "desktop");
   return { accepted: true, targetStatus };
