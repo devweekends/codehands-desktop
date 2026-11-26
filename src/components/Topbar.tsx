@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import type { NavView } from "./AppSidebar";
 import type { DesktopSession } from "./TaskDetail";
+import { CodeHandsLogo } from "./CodeHandsLogo";
 import { SearchIcon, BellIcon, SunIcon, MoonIcon, CheckCircleIcon, ReviewIcon } from "./Icons";
 
 interface TopbarProps {
@@ -10,6 +11,7 @@ interface TopbarProps {
   onToggleTheme: () => void;
   onOpenCommandPalette: () => void;
   onNewTask: () => void;
+  onGoHome?: () => void;
   notificationCount?: number;
   sessions?: DesktopSession[];
   onSelectSession?: (id: string) => void;
@@ -26,9 +28,9 @@ const VIEW_TITLES: Record<NavView, string> = {
   overview: "Home",
   projects: "Projects",
   "project-detail": "Project Details",
-  tasks: "Tasks",
-  workflows: "Workflow Builder",
-  review: "Review",
+  tasks: "All tasks",
+  workflows: "Workflows",
+  review: "Review queue",
   models: "Models & Routing",
   memory: "Repository Memory",
   scheduler: "Scheduler & Queue",
@@ -47,6 +49,7 @@ export function Topbar({
   theme,
   onToggleTheme,
   onOpenCommandPalette,
+  onGoHome,
   notificationCount = 0,
   sessions = [],
   onSelectSession,
@@ -84,6 +87,10 @@ export function Topbar({
 
   return (
     <header className="topbar">
+      <button className="topbar-brand" onClick={onGoHome} title="Home">
+        <CodeHandsLogo size={22} />
+        <span>CodeHands</span>
+      </button>
       <div className="topbar-left">
         {onToggleSidebar && (
           <button
@@ -123,21 +130,17 @@ export function Topbar({
         )}
 
         <div className="breadcrumbs">
-          <span className="crumb-root">CodeHands</span>
-          <span className="crumb-sep">/</span>
           <span className="crumb-current">{VIEW_TITLES[currentView] || "Workspace"}</span>
         </div>
       </div>
 
-      <div className="topbar-center">
-        <button className="topbar-search-trigger" onClick={onOpenCommandPalette}>
-          <SearchIcon size={14} color="#666C7E" />
-          <span className="search-placeholder">Search or run a command</span>
-          <kbd className="topbar-kbd">Ctrl+K</kbd>
-        </button>
-      </div>
-
       <div className="topbar-right">
+        <button className="topbar-search-trigger" onClick={onOpenCommandPalette}>
+          <SearchIcon size={13} />
+          <span className="search-placeholder">Search or run a command</span>
+          <kbd className="topbar-kbd">Ctrl K</kbd>
+        </button>
+
         <span className={`connection-pill ${connected ? "connected" : "disconnected"}`}>
           <i className="status-dot" />
           <span className="connection-text">{connected ? "Daemon active" : "Offline"}</span>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { SearchIcon } from "./Icons";
 
 interface CommandItem {
@@ -56,7 +56,7 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     },
     {
       id: "view-tasks",
-      title: "Go to Task Workspace",
+      title: "Go to All tasks",
       category: "Navigation",
       symbol: "T",
       action: () => {
@@ -66,7 +66,7 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     },
     {
       id: "view-workflows",
-      title: "Open Workflow Builder",
+      title: "Open Workflows",
       category: "Views",
       symbol: "W",
       action: () => {
@@ -86,7 +86,7 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     },
     {
       id: "view-models",
-      title: "Models & Routing Hub",
+      title: "Models & Routing",
       category: "Views",
       symbol: "M",
       action: () => {
@@ -106,7 +106,7 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     },
     {
       id: "view-analytics",
-      title: "Usage & Analytics",
+      title: "Go to Insights",
       category: "Navigation",
       symbol: "A",
       action: () => {
@@ -140,6 +140,8 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     cmd.title.toLowerCase().includes(query.toLowerCase()) ||
     cmd.category.toLowerCase().includes(query.toLowerCase())
   );
+
+  const groupOf = (c: CommandItem) => (c.category === "Navigation" || c.category === "Views" ? "Go to" : c.category);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -192,17 +194,18 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
             <div className="palette-empty">No matching commands found.</div>
           ) : (
             filtered.map((item, idx) => (
+              <Fragment key={item.id}>
+                {(idx === 0 || groupOf(filtered[idx - 1]) !== groupOf(item)) && <div className="palette-group">{groupOf(item)}</div>}
               <button
-                key={item.id}
                 className={`palette-item ${idx === selectedIndex ? "active" : ""}`}
                 onClick={item.action}
                 onMouseEnter={() => setSelectedIndex(idx)}
               >
                 <span className="palette-item-icon">{item.symbol}</span>
                 <span className="palette-item-title">{item.title}</span>
-                <span className="palette-item-cat">{item.category}</span>
                 {item.shortcut && <kbd className="palette-item-shortcut">{item.shortcut}</kbd>}
               </button>
+              </Fragment>
             ))
           )}
         </div>

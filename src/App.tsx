@@ -16,12 +16,12 @@ import { AuthModal } from "./components/AuthModal";
 import { DashboardView } from "./components/DashboardView";
 import { ProjectsView } from "./components/ProjectsView";
 import { ModernWorkspace } from "./components/ModernWorkspace";
-import { WorkflowBuilderView } from "./components/WorkflowBuilderView";
 import { ReviewQueueView } from "./components/ReviewQueueView";
-import { ModelHubView } from "./components/ModelHubView";
 import { AnalyticsView } from "./components/AnalyticsView";
 import { SettingsView } from "./components/SettingsView";
 import { NewTaskForm } from "./components/NewTaskForm";
+import { WorkflowBuilderView } from "./components/WorkflowBuilderView";
+import { ModelHubView } from "./components/ModelHubView";
 import {
   RepositoryMemoryPage,
   SchedulerQueuePage,
@@ -410,177 +410,158 @@ export default function App() {
   const userDisplayEmail = resolveUserEmail(auth);
   const isLoggedIn = Boolean(auth?.deviceToken || auth?.userId);
 
+  const openTask = (id: string) => {
+    setActiveSessionId(id);
+    navigateTo("tasks");
+  };
+  const openNewTask = (repoPath?: string) => {
+    if (repoPath) setInitialRepo(repoPath);
+    navigateTo("new");
+  };
+  // From the sidebar: "All tasks" and "Projects" open their lists; a task or a project opens its own page.
+  const openFromSidebar = (view: NavView, extraId?: string) => {
+    if (view === "projects") setSelectedProjectId(extraId ?? null);
+    else if (extraId) setActiveSessionId(extraId);
+    else if (view === "tasks") setActiveSessionId(null);
+    navigateTo(view);
+  };
+
   return (
     <div className={`app-shell theme-${theme}`}>
       {showSplash && <SplashScreen minDurationMs={1200} onFinish={finishSplash} />}
 
-      <AppSidebar
+      <Topbar
         currentView={currentView}
-        onNavigate={(view, extraId) => {
-          navigateTo(view);
-          if (extraId) setActiveSessionId(extraId);
-        }}
-        sessions={sessions}
-        projects={projects}
         connected={connected}
-        daemonState={daemonState}
-        userName={userDisplayName}
-        userEmail={userDisplayEmail}
-        isLoggedIn={isLoggedIn}
-        onOpenAuth={() => setIsAuthModalOpen(true)}
-        onLogout={handleLogout}
-        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         theme={theme}
         onToggleTheme={toggleTheme}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        onNewTask={() => navigateTo("new")}
+        onGoHome={() => navigateTo("overview")}
+        notificationCount={sessions.filter((s) => s.status === "awaiting_approval" || s.status === "failed").length}
+        sessions={sessions}
+        onSelectSession={openTask}
+        onOpenReview={() => navigateTo("review")}
+        isSidebarCollapsed={isSidebarCollapsed}
+        onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
+        canGoBack={historyIndex > 0}
+        canGoForward={historyIndex < history.length - 1}
+        onNavigateBack={handleBack}
+        onNavigateForward={handleForward}
       />
 
-      <div className="app-main-layout">
-        <Topbar
+      <div className="app-body">
+        <AppSidebar
           currentView={currentView}
+          activeSessionId={activeSessionId}
+          onNavigate={openFromSidebar}
+          sessions={sessions}
+          projects={projects}
           connected={connected}
+          daemonState={daemonState}
+          userName={userDisplayName}
+          userEmail={userDisplayEmail}
+          isLoggedIn={isLoggedIn}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onLogout={handleLogout}
+          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
           theme={theme}
           onToggleTheme={toggleTheme}
-          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-          onNewTask={() => navigateTo("new")}
-          notificationCount={sessions.filter((s) => s.status === "awaiting_approval" || s.status === "failed").length}
-          sessions={sessions}
-          onSelectSession={(id) => {
-            setActiveSessionId(id);
-            navigateTo("tasks");
-          }}
-          onOpenReview={() => navigateTo("review")}
-          isSidebarCollapsed={isSidebarCollapsed}
-          onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
-          canGoBack={historyIndex > 0}
-          canGoForward={historyIndex < history.length - 1}
-          onNavigateBack={handleBack}
-          onNavigateForward={handleForward}
         />
 
-        {notice && (
-          <div className="notice-banner-row">
-            <span>{notice}</span>
-            <button onClick={() => setNotice(null)}>×</button>
-          </div>
-        )}
-
-        <main className="app-content-viewport">
-          {currentView === "overview" && (
-            <DashboardView
-              sessions={sessions}
-              projects={projects}
-              onOpenSession={(id) => {
-                setActiveSessionId(id);
-                navigateTo("tasks");
-              }}
-              onOpenProject={(projId) => {
-                setSelectedProjectId(projId);
-                navigateTo("projects");
-              }}
-              onNewTask={(repoPath) => {
-                if (repoPath) setInitialRepo(repoPath);
-                navigateTo("new");
-              }}
-              onNewProject={() => {
-                navigateTo("projects");
-              }}
-            />
+        <div className="app-main-layout">
+          {notice && (
+            <div className="notice-banner-row">
+              <span>{notice}</span>
+              <button onClick={() => setNotice(null)}>×</button>
+            </div>
           )}
 
-          {currentView === "projects" && (
-            <ProjectsView
-              projects={projects}
-              sessions={sessions}
-              selectedProjectId={selectedProjectId}
-              onOpenSession={(id) => {
-                setActiveSessionId(id);
-                navigateTo("tasks");
-              }}
-              onNewTask={(repoPath) => {
-                if (repoPath) setInitialRepo(repoPath);
-                navigateTo("new");
-              }}
-            />
-          )}
+          <main className="app-content-viewport">
+            {currentView === "overview" && (
+              <DashboardView
+                userName={userDisplayName}
+                sessions={sessions}
+                projects={projects}
+                events={events}
+                onOpenSession={openTask}
+                onOpenProject={(projId) => {
+                  setSelectedProjectId(projId);
+                  navigateTo("projects");
+                }}
+                onNewTask={openNewTask}
+                onNewProject={() => openFromSidebar("projects")}
+                onOpenReview={() => navigateTo("review")}
+                onAllTasks={() => openFromSidebar("tasks")}
+              />
+            )}
 
-          {currentView === "tasks" && (
-            <ModernWorkspace
-              sessions={sessions}
-              activeSessionId={activeSessionId}
-              onSelectSession={(id) => setActiveSessionId(id)}
-              onNewTask={() => navigateTo("new")}
-              events={events}
-              onCommand={handleSessionCommand}
-              connected={connected}
-            />
-          )}
+            {currentView === "projects" && (
+              <ProjectsView
+                key={`projects-${historyIndex}`}
+                projects={projects}
+                sessions={sessions}
+                selectedProjectId={selectedProjectId}
+                onOpenSession={openTask}
+                onNewTask={openNewTask}
+              />
+            )}
 
-          {currentView === "workflows" && <WorkflowBuilderView />}
+            {currentView === "tasks" && (
+              <ModernWorkspace
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                onSelectSession={(id) => setActiveSessionId(id)}
+                onShowAll={() => setActiveSessionId(null)}
+                onNewTask={() => navigateTo("new")}
+                events={events}
+                onCommand={handleSessionCommand}
+                connected={connected}
+              />
+            )}
 
-          {currentView === "review" && (
-            <ReviewQueueView
-              sessions={sessions}
-              onCommand={handleSessionCommand}
-              onOpenSession={(id) => {
-                setActiveSessionId(id);
-                navigateTo("tasks");
-              }}
-            />
-          )}
+            {currentView === "review" && (
+              <ReviewQueueView sessions={sessions} onCommand={handleSessionCommand} onOpenSession={openTask} />
+            )}
 
-          {currentView === "models" && <ModelHubView />}
+            {currentView === "analytics" && <AnalyticsView sessions={sessions} projects={projects} />}
 
-          {currentView === "memory" && <RepositoryMemoryPage />}
+            {currentView === "workflows" && <WorkflowBuilderView />}
+            {currentView === "models" && <ModelHubView />}
+            {currentView === "memory" && <RepositoryMemoryPage />}
+            {currentView === "scheduler" && <SchedulerQueuePage />}
+            {currentView === "environments" && <EnvironmentsPage />}
+            {currentView === "runtime" && <RuntimeLogsPage />}
+            {currentView === "integrations" && <IntegrationsPage />}
+            {currentView === "security" && <SecurityPage />}
 
-          {currentView === "scheduler" && <SchedulerQueuePage />}
+            {currentView === "settings" && (
+              <SettingsView
+                userName={userDisplayName}
+                userEmail={userDisplayEmail}
+                onLogout={handleLogout}
+                theme={theme}
+                onToggleTheme={toggleTheme}
+                onOpenAuth={() => setIsAuthModalOpen(true)}
+                onAuthSuccess={handleAuthSuccess}
+              />
+            )}
 
-          {currentView === "environments" && <EnvironmentsPage />}
+            {currentView === "new" && (
+              <NewTaskForm connected={connected} initialRepo={initialRepo} onStart={handleStartTask} onCancel={() => navigateTo("overview")} />
+            )}
+          </main>
 
-          {currentView === "runtime" && <RuntimeLogsPage />}
-
-          {currentView === "analytics" && (
-            <AnalyticsView sessions={sessions} projects={projects} />
-          )}
-
-          {currentView === "integrations" && <IntegrationsPage />}
-
-          {currentView === "security" && <SecurityPage />}
-
-          {currentView === "settings" && (
-            <SettingsView
-              userName={userDisplayName}
-              userEmail={userDisplayEmail}
-              onLogout={handleLogout}
-              theme={theme}
-              onToggleTheme={toggleTheme}
-              onOpenAuth={() => setIsAuthModalOpen(true)}
-              onAuthSuccess={handleAuthSuccess}
-            />
-          )}
-
-          {currentView === "new" && (
-            <NewTaskForm
-              connected={connected}
-              initialRepo={initialRepo}
-              onStart={handleStartTask}
-              onCancel={() => navigateTo("overview")}
-            />
-          )}
-        </main>
-
-        <TerminalDock
-          connected={connected}
-          projectsCount={projects.length}
-          sessionsCount={sessions.length}
-        />
+          <TerminalDock connected={connected} projectsCount={projects.length} sessionsCount={sessions.length} />
+        </div>
       </div>
 
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
-        onNavigate={(view) => navigateTo(view as NavView)}
+        onNavigate={(view) => openFromSidebar(view as NavView)}
         onNewTask={() => navigateTo("new")}
         toggleTheme={toggleTheme}
       />

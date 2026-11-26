@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { DemoNote, DemoTag } from "./Demo";
-import type { DesktopSession } from "./TaskDetail";
+import { DemoNote, DemoTag, hasRealDiff } from "./Demo";
+import { Track } from "./Track";
+import { parseDiffToFiles } from "../utils/dynamicDiff";
+import type { DesktopSession, SessionEvent } from "./TaskDetail";
 import type { DesktopProject } from "./WorkspacePages";
 import {
   PlusIcon,
@@ -8,6 +10,7 @@ import {
   ListIcon,
   StarIcon,
   ArrowRightIcon,
+  EyeIcon,
 } from "./Icons";
 
 interface DashboardViewProps {
@@ -17,6 +20,10 @@ interface DashboardViewProps {
   onOpenProject: (projectId: string) => void;
   onNewTask: (defaultRepo?: string) => void;
   onNewProject: () => void;
+  userName?: string;
+  events?: Record<string, SessionEvent[]>;
+  onOpenReview?: () => void;
+  onAllTasks?: () => void;
 }
 
 interface ProjectCardData {
@@ -123,14 +130,6 @@ const DEFAULT_PROJECT_CARDS: ProjectCardData[] = [
   },
 ];
 
-const DEMO_ROUTING = [
-  ["Analyze", "Claude 3.5 Sonnet", "Anthropic"],
-  ["Plan", "Claude 3.5 Sonnet", "Anthropic"],
-  ["Implement", "Qwen 2.5 Coder / GPT-4o", "Fast & Precise"],
-  ["Test", "GPT-4o Mini", "OpenAI"],
-  ["Review", "Claude 3.5 Sonnet", "Anthropic"],
-];
-
 export function DashboardView({
   sessions,
   projects,
@@ -138,6 +137,10 @@ export function DashboardView({
   onOpenProject,
   onNewTask,
   onNewProject,
+  userName,
+  events = {},
+  onOpenReview,
+  onAllTasks,
 }: DashboardViewProps) {
   const [filter, setFilter] = useState<"all" | "active" | "archived">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -203,37 +206,77 @@ export function DashboardView({
   const usingDemoProjects = dedupedProjects.length === 0;
   const waiting = sessions.filter((s) => s.status === "awaiting_approval");
   const running = sessions.filter((s) => s.status === "running" || s.status === "queued");
+  const finished = sessions.filter((s) => !waiting.includes(s) && !running.includes(s));
+  const spent = sessions.reduce((total, s) => total + (s.costUsd || 0), 0);
   const titleOf = (s: DesktopSession) => s.title || s.prompt || `Task ${s.id.slice(0, 8)}`;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const firstName = userName && !userName.includes("(") ? userName.split(" ")[0] : "";
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   const headline = [
-    waiting.length ? `${waiting.length} change${waiting.length > 1 ? "s" : ""} waiting for you` : "Nothing is waiting for you",
-    running.length ? `${running.length} task${running.length > 1 ? "s" : ""} running or queued` : "",
-  ].filter(Boolean).join(" · ");
+    waiting.length ? `${count(waiting.length, "change is", "changes are")} waiting for you.` : "Nothing is waiting for you.",
+    running.length ? `${count(running.length, "task is", "tasks are")} running or queued.` : "",
+  ].join(" ");
+
+  const diffFacts = (s: DesktopSession) => {
+    if (!hasRealDiff(s)) return <span className="fact warn">No real diff saved for this task</span>;
+    const files = parseDiffToFiles(s.diff as string, s.id).filter((f) => f.diffText.includes("@@"));
+    const lines = (s.diff as string).split("\n");
+    const added = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
+    const removed = lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
+    return <span className="fact">{count(files.length, "file", "files")}, +{added} −{removed}</span>;
+  };
 
   return (
     <div className="page dashboard-view-container">
       <div className="col">
         <div className="page-head">
           <div>
-            <h1>Home</h1>
+            <h1>{greeting}{firstName ? `, ${firstName}` : ""}</h1>
             <p className="sub">{headline}</p>
           </div>
-          <button className="btn add-project-btn" onClick={onNewProject}>
-            <PlusIcon size={13} />
-            <span>Add project</span>
-          </button>
+          <div className="row">
+            {sessions.length > 0 && (
+              <div className="head-stat">
+                <span className="mut sm">Spent on {count(sessions.length, "task", "tasks")}</span>
+                <b>${spent.toFixed(2)}</b>
+              </div>
+            )}
+            <button className="btn ghost" onClick={onOpenReview} data-nav="Review Queue">Review queue</button>
+          </div>
         </div>
+
+        {sessions.length === 0 && (
+          <div className="home-start">
+            <h2>What should we work on first?</h2>
+            <p className="sub">Describe it like you would to a teammate.</p>
+            <button className="home-start-box" onClick={() => onNewTask()}>
+              <span>For example: “Add input validation to the signup form and a test for an empty email”</span>
+              <span className="btn primary">Start first task <ArrowRightIcon size={13} color="#ffffff" /></span>
+            </button>
+          </div>
+        )}
 
         {waiting.length > 0 && (
           <>
             <div className="sec-h"><span>Needs you</span></div>
             {waiting.map((s) => (
-              <div key={s.id} className="card pad attention need-card row" onClick={() => onOpenSession(s.id)}>
-                <span className="dot awaiting_approval" />
-                <div className="grow">
-                  <h3 className="ell">{titleOf(s)}</h3>
-                  <div className="mut sm ell">{s.projectName || s.repo} · {s.agent} · {s.model} · ${(s.costUsd || 0).toFixed(2)}</div>
+              <div key={s.id} className="card attention need-card" onClick={() => onOpenSession(s.id)}>
+                <div className="need-body">
+                  <span className="icon-tile warn"><EyeIcon size={16} /></span>
+                  <div className="grow">
+                    <div className="row">
+                      <h3 className="grow">{titleOf(s)}</h3>
+                      <span className="pill plain awaiting_approval">Ready for review</span>
+                    </div>
+                    <div className="mut sm ell">{s.projectName || s.repo} · {s.agent} · {s.model} · ${(s.costUsd || 0).toFixed(2)}</div>
+                    <div className="row wrap facts">{diffFacts(s)}</div>
+                  </div>
                 </div>
-                <button className="btn primary sm">Review changes <ArrowRightIcon size={12} /></button>
+                <div className="need-foot">
+                  <span className="mut sm grow">Nothing is committed until you approve</span>
+                  <button className="btn primary sm">Review changes <ArrowRightIcon size={12} color="#ffffff" /></button>
+                </div>
               </div>
             ))}
           </>
@@ -242,46 +285,47 @@ export function DashboardView({
         {running.length > 0 && (
           <>
             <div className="sec-h"><span>Running now</span></div>
-            <div className="card list">
-              {running.map((s) => (
-                <div key={s.id} className="click" onClick={() => onOpenSession(s.id)}>
+            {running.map((s) => (
+              <div key={s.id} className="card pad running-card" onClick={() => onOpenSession(s.id)}>
+                <div className="row">
                   <span className={`dot ${s.status}`} />
-                  <span className="grow ell">{titleOf(s)}</span>
-                  <span className="mut sm">{s.status}</span>
-                  <span className="mono mut">${(s.costUsd || 0).toFixed(2)}</span>
+                  <h3 className="grow ell">{titleOf(s)}</h3>
+                  <span className="mut sm">{s.status} · ${(s.costUsd || 0).toFixed(2)}</span>
                 </div>
-              ))}
-            </div>
+                <div className="mt12"><Track session={s} events={events[s.id]} /></div>
+              </div>
+            ))}
           </>
         )}
 
-        <div className="sec-h"><span>Recent runs</span></div>
-        {sessions.length === 0 ? (
-          <div className="card empty">
-            <h3>No tasks yet</h3>
-            <p>Describe a change and CodeHands will work on it. You approve it before anything is committed.</p>
-            <button className="btn primary" onClick={() => onNewTask()}>Start first task</button>
-          </div>
-        ) : (
-          <div className="card list">
-            {sessions.slice(0, 4).map((s) => (
-              <div key={s.id} className="click mini-session-row" onClick={() => onOpenSession(s.id)}>
-                <span className={`dot ${s.status}`} />
-                <div className="grow">
-                  <div className="ell">{titleOf(s)}</div>
-                  <div className="mut sm ell">{s.agent} · {s.model}</div>
-                </div>
-                <span className={`pill ${s.status}`}>{s.status.replace(/_/g, " ")}</span>
-                <span className="mono mut">${(s.costUsd || 0).toFixed(2)}</span>
+        {sessions.length > 0 && (
+          <>
+            <div className="sec-h">
+              <span>Recent</span>
+              <button className="btn-link" onClick={onAllTasks}>All tasks</button>
+            </div>
+            {finished.length === 0 ? (
+              <p className="mut sm">No finished tasks yet.</p>
+            ) : (
+              <div className="card list">
+                {finished.slice(0, 4).map((s) => (
+                  <div key={s.id} className="click mini-session-row" onClick={() => onOpenSession(s.id)}>
+                    <span className={`dot ${s.status}`} />
+                    <span className="grow ell">{titleOf(s)}</span>
+                    <span className="mut sm ell">{s.projectName}</span>
+                    <span className={`pill ${s.status}`}>{s.status.replace(/_/g, " ")}</span>
+                    <span className="mono mut">${(s.costUsd || 0).toFixed(2)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
 
-        <div className="sec-h">
+        <div className="sec-h projects-head">
           <span className="row">Projects {usingDemoProjects && <DemoTag />}</span>
           <div className="row wrap">
-            <input type="text" style={{ width: 200 }} placeholder="Search projects..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            <input type="text" style={{ width: 180 }} placeholder="Search projects..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             <div className="seg">
               {(["all", "active", "archived"] as const).map((f) => (
                 <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>
@@ -293,12 +337,11 @@ export function DashboardView({
               <button className={viewMode === "grid" ? "active" : ""} onClick={() => setViewMode("grid")} title="Grid view"><GridIcon size={13} /></button>
               <button className={viewMode === "list" ? "active" : ""} onClick={() => setViewMode("list")} title="List view"><ListIcon size={13} /></button>
             </div>
+            <button className="btn sm add-project-btn" onClick={onNewProject}><PlusIcon size={12} /> Add project</button>
           </div>
         </div>
 
-        {usingDemoProjects && (
-          <DemoNote>These are sample projects. Yours appear here after you run your first task.</DemoNote>
-        )}
+        {usingDemoProjects && <DemoNote>These are sample projects. Yours appear here after you run your first task.</DemoNote>}
 
         <div className={viewMode === "grid" ? "grid3" : "card list"}>
           {filteredProjects.map((proj) => {
@@ -347,22 +390,6 @@ export function DashboardView({
             );
           })}
         </div>
-
-        <details className="card demo-details mt24">
-          <summary>
-            <span className="grow">Model routing</span>
-            <DemoTag />
-          </summary>
-          <div className="body sub sm">
-            {DEMO_ROUTING.map(([phase, model, provider]) => (
-              <div key={phase} className="repo-info-row">
-                <span>{phase}</span>
-                <span>{model} · {provider}</span>
-              </div>
-            ))}
-            <p className="mt8">Fixed sample text. It does not follow the models you choose for a task.</p>
-          </div>
-        </details>
       </div>
     </div>
   );

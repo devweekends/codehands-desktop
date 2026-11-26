@@ -113,7 +113,6 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
 
         {/* Main Form */}
         <form className="new-task-form" onSubmit={handleSubmit}>
-          {/* Prompt Specification */}
           <div className="composer-card">
             <textarea
               id="task-prompt"
@@ -122,100 +121,88 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
               rows={5}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") e.currentTarget.form?.requestSubmit();
+              }}
               placeholder="For example: add input validation to the signup form and a test for an empty email"
               required
               autoFocus
             />
 
-            {/* Target Repository Path */}
-            <div className="repo-path-row">
-              <div className="repo-input-wrap">
-                <span className="repo-icon"><FolderIcon size={15} color="#9FA4B4" /></span>
+            <div className="composer-chips">
+              <div className="chip repo-input-wrap" title="Local git folder">
+                <FolderIcon size={13} />
                 <input
                   type="text"
                   value={repo}
                   onChange={(e) => setRepo(e.target.value)}
-                  placeholder="Target Local Repository Path (e.g. D:\dev\my-app)"
+                  placeholder="D:\dev\my-app"
+                  aria-label="Local git folder"
                   required
                 />
               </div>
-              <span className="mut sm">Local git folder</span>
-            </div>
-          </div>
-
-          {/* Configuration Grid: Agent & Model */}
-          <div className="config-grid-cards">
-            <div className="config-card">
-              <label>Agent</label>
-              <select value={agent} onChange={(e) => handleAgentChange(e.target.value as AgentKind)}>
-                <option value="codehands">CodeHands Native Orchestrator (Multi-Phase)</option>
-                <option value="claude-code">Claude Code CLI</option>
-                <option value="codex">Codex CLI</option>
-              </select>
-              {agent === "claude-code" ? (
-                <span className="config-note">Runs Claude Code in a separate copy of your repo.</span>
-              ) : (
-                <span className="config-note warn">
-                  The current daemon only runs Claude Code and Codex{agent === "codehands" ? ", so this agent will fail. Pick Claude Code." : "."}
-                </span>
-              )}
-            </div>
-
-            <div className="config-card">
-              <label>Model</label>
-              <select value={model} onChange={(e) => setModel(e.target.value)}>
-                {(AVAILABLE_MODELS[agent] || []).map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Advanced Model-Per-Phase Toggle */}
-          <div className="advanced-routing-accordion">
-            <button
-              type="button"
-              className="accordion-toggle-btn"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-            >
-              <span>{showAdvanced ? "▾" : "▸"} A different model for each step</span>
-              <span className="mut sm">{showAdvanced ? "On" : "Optional"}</span>
-            </button>
-
-            {showAdvanced && (
-              <div className="phase-routing-grid">
-                {(["analyze", "plan", "implement", "test", "review"] as const).map((phase) => (
-                  <div key={phase} className="phase-config-item">
-                    <span className="phase-item-label">{phase.toUpperCase()}</span>
-                    <select
-                      value={phaseModels[phase]}
-                      onChange={(e) => setPhaseModels({ ...phaseModels, [phase]: e.target.value })}
-                    >
-                      <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
-                      <option value="qwen-2.5-coder">Qwen 2.5 Coder</option>
-                      <option value="gpt-4o">GPT-4o</option>
-                      <option value="gpt-4o-mini">GPT-4o Mini</option>
-                      <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
-                    </select>
-                  </div>
-                ))}
+              <div className="chip config-card" title="Agent">
+                <select value={agent} onChange={(e) => handleAgentChange(e.target.value as AgentKind)} aria-label="Agent">
+                  <option value="codehands">CodeHands Native Orchestrator (Multi-Phase)</option>
+                  <option value="claude-code">Claude Code CLI</option>
+                  <option value="codex">Codex CLI</option>
+                </select>
               </div>
-            )}
+              <div className="chip config-card" title="Model">
+                <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="Model">
+                  {(AVAILABLE_MODELS[agent] || []).map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <button type="button" className={`chip accordion-toggle-btn ${showAdvanced ? "on" : ""}`} onClick={() => setShowAdvanced(!showAdvanced)}>
+                Models per step: {showAdvanced ? "on" : "off"}
+              </button>
+              <span className="grow" />
+              <button type="submit" className="btn primary btn-submit-task" disabled={!prompt.trim() || !repo.trim()}>
+                <span>Start task</span>
+                <ArrowRightIcon size={14} color="#ffffff" />
+                <kbd>Ctrl ↵</kbd>
+              </button>
+            </div>
           </div>
 
-          {/* Form Actions */}
+          {agent !== "claude-code" && (
+            <p className="config-note warn">
+              The current daemon only runs Claude Code and Codex{agent === "codehands" ? ", so this agent will fail. Pick Claude Code." : "."}
+            </p>
+          )}
+
+          {showAdvanced && (
+            <div className="card mt12 phase-routing-grid">
+              <div className="phase-head">Model for each step</div>
+              {(
+                [
+                  ["analyze", "Understand", "Reads the code"],
+                  ["plan", "Plan", "Decides what to change"],
+                  ["implement", "Build", "Writes the change"],
+                  ["test", "Test", "Runs your tests"],
+                  ["review", "Review", "A second look before you"],
+                ] as const
+              ).map(([phase, label, why]) => (
+                <div key={phase} className="phase-config-item">
+                  <span className="phase-item-label">{label}</span>
+                  <span className="mut sm grow">{why}</span>
+                  <select value={phaseModels[phase]} onChange={(e) => setPhaseModels({ ...phaseModels, [phase]: e.target.value })} aria-label={`${label} model`}>
+                    <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                    <option value="qwen-2.5-coder">Qwen 2.5 Coder</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                    <option value="gpt-4o-mini">GPT-4o Mini</option>
+                    <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="composer-actions-bar">
-            <button type="button" className="btn ghost btn-cancel" onClick={onCancel}>
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn primary lg btn-submit-task"
-              disabled={!prompt.trim() || !repo.trim()}
-            >
-              <span>Start task</span>
-              <ArrowRightIcon size={14} color="#ffffff" />
-            </button>
+            <span className="mut sm grow">Nothing is committed until you approve the change.</span>
+            <button type="button" className="btn ghost btn-cancel" onClick={onCancel}>Cancel</button>
           </div>
         </form>
       </div>

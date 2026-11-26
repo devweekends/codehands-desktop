@@ -88,6 +88,9 @@ export function TerminalDock({ connected, projectsCount = 1, sessionsCount = 0 }
           <DemoTag label="Demo replies" />
         </div>
         <div className="dock-right">
+          <span className="dock-hint">Commands <kbd>Ctrl K</kbd></span>
+          <span className="dock-hint">New task <kbd>Ctrl N</kbd></span>
+          <span className="dock-hint">Sidebar <kbd>Ctrl B</kbd></span>
           <span className={`dock-arrow ${isOpen ? "open" : ""}`}>
             <ChevronDownIcon size={14} />
           </span>
