@@ -23,6 +23,7 @@ interface ModernWorkspaceProps {
   onSelectSession: (id: string) => void;
   onShowAll: () => void;
   onNewTask: () => void;
+  onRetry: (session: DesktopSession) => void;
   events: Record<string, SessionEvent[]>;
   onCommand: (sessionId: string, cmd: CommandKind) => boolean;
   connected?: boolean;
@@ -77,6 +78,7 @@ export function ModernWorkspace({
   onSelectSession,
   onShowAll,
   onNewTask,
+  onRetry,
   events,
   onCommand,
   connected: _connected,
@@ -482,10 +484,7 @@ export function ModernWorkspace({
         <>
           <div className="mt16 error-banner-box-wrap">
             {stateCard("bad", <AlertTriangleIcon size={20} />, "This task failed", <><strong>Why it failed: </strong>{failureReason}</>,
-              <>
-                <button className="btn" onClick={() => setActiveTab("logs")}>Open logs</button>
-                <button className="btn primary" onClick={onNewTask}>Start a new task</button>
-              </>)}
+              <button className="btn" onClick={() => setActiveTab("logs")}>Open logs</button>)}
           </div>
           {facts}
           {activity}
@@ -554,6 +553,11 @@ export function ModernWorkspace({
               )}
               {currentSession.status === "stopped" && (
                 <button className="btn primary btn-clean-action resume" onClick={() => act("resume")} title="Resume this task">Resume</button>
+              )}
+              {status === "failed" && (
+                <button className="btn primary btn-retry" onClick={() => onRetry(currentSession)} title="Open New task filled in from this one">
+                  Try again
+                </button>
               )}
               {(isFailed || isApproved) && (
                 <button className="btn ghost btn-clean-action delete" onClick={() => act("delete")} title="Remove this task from history">

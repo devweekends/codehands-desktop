@@ -1,10 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AgentKind } from "@codehands/contracts";
 import { FolderIcon, ArrowRightIcon, AlertTriangleIcon } from "./Icons";
+
+/** What "Try again" carries over from a failed task. */
+export interface TaskDraft {
+  repo: string;
+  prompt: string;
+  agent: string;
+  model: string;
+}
 
 interface NewTaskFormProps {
   connected: boolean;
   initialRepo?: string;
+  draft?: TaskDraft | null;
+  /** Called once the form has taken the draft, so the next new task starts empty. */
+  onDraftUsed?: () => void;
   onStart: (taskData: {
     repo: string;
     prompt: string;
@@ -35,11 +46,29 @@ const DEFAULT_PHASE_MODELS = {
   review: "claude-3-5-sonnet",
 };
 
-export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTaskFormProps) {
-  const [repo, setRepo] = useState(initialRepo || "D:\\dev\\sample-repo");
-  const [prompt, setPrompt] = useState("");
-  const [agent, setAgent] = useState<AgentKind>("codehands");
-  const [model, setModel] = useState("claude-3-5-sonnet");
+export function NewTaskForm({ connected, initialRepo, draft, onDraftUsed, onStart, onCancel }: NewTaskFormProps) {
+  // The daemon only runs Claude Code and Codex. Retrying with any other agent would just fail again.
+  const [retry] = useState(() => {
+    if (!draft) return null;
+    const retryAgent: AgentKind = draft.agent === "codex" ? "codex" : "claude-code";
+    const models = AVAILABLE_MODELS[retryAgent];
+    return {
+      repo: draft.repo,
+      prompt: draft.prompt,
+      agent: retryAgent,
+      model: retryAgent === draft.agent && models.includes(draft.model) ? draft.model : models[0],
+      switchedFrom: retryAgent === draft.agent ? null : draft.agent,
+    };
+  });
+  useEffect(() => {
+    if (draft) onDraftUsed?.();
+    // runs once: the draft is already copied into the form
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [repo, setRepo] = useState(retry?.repo || initialRepo || "D:\\dev\\sample-repo");
+  const [prompt, setPrompt] = useState(retry?.prompt ?? "");
+  const [agent, setAgent] = useState<AgentKind>(retry?.agent ?? "codehands");
+  const [model, setModel] = useState(retry?.model ?? "claude-3-5-sonnet");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [phaseModels, setPhaseModels] = useState(DEFAULT_PHASE_MODELS);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +122,13 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
             <p className="sub">Describe it like you would to a teammate. You approve the change before it is committed.</p>
           </div>
         </div>
+
+        {retry && (
+          <div className="retry-note">
+            Filled in from your failed task. Check it, then click Start task. This creates a new task; the failed one stays in your history.
+            {retry.switchedFrom && ` The agent was changed to Claude Code, because the daemon cannot run "${retry.switchedFrom}".`}
+          </div>
+        )}
 
         {/* Notice alert */}
         {!connected && (

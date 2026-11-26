@@ -19,7 +19,7 @@ import { ModernWorkspace } from "./components/ModernWorkspace";
 import { ReviewQueueView } from "./components/ReviewQueueView";
 import { AnalyticsView } from "./components/AnalyticsView";
 import { SettingsView } from "./components/SettingsView";
-import { NewTaskForm } from "./components/NewTaskForm";
+import { NewTaskForm, type TaskDraft } from "./components/NewTaskForm";
 import { WorkflowBuilderView } from "./components/WorkflowBuilderView";
 import { ModelHubView } from "./components/ModelHubView";
 import {
@@ -99,6 +99,7 @@ export default function App() {
   const [daemonState, setDaemonState] = useState<"starting" | "running" | "unavailable">("starting");
   const [notice, setNotice] = useState<string | null>(null);
   const [initialRepo, setInitialRepo] = useState("");
+  const [retryDraft, setRetryDraft] = useState<TaskDraft | null>(null);
 
   // Navigation & Shell state
   const [currentView, setCurrentView] = useState<NavView>("overview");
@@ -516,6 +517,10 @@ export default function App() {
                 onSelectSession={(id) => setActiveSessionId(id)}
                 onShowAll={() => setActiveSessionId(null)}
                 onNewTask={() => navigateTo("new")}
+                onRetry={(s) => {
+                  setRetryDraft({ repo: s.repo || "", prompt: s.prompt || s.title || "", agent: s.agent, model: s.model || "" });
+                  navigateTo("new");
+                }}
                 events={events}
                 onCommand={handleSessionCommand}
                 connected={connected}
@@ -550,7 +555,14 @@ export default function App() {
             )}
 
             {currentView === "new" && (
-              <NewTaskForm connected={connected} initialRepo={initialRepo} onStart={handleStartTask} onCancel={() => navigateTo("overview")} />
+              <NewTaskForm
+                connected={connected}
+                initialRepo={initialRepo}
+                draft={retryDraft}
+                onDraftUsed={() => setRetryDraft(null)}
+                onStart={handleStartTask}
+                onCancel={() => navigateTo("overview")}
+              />
             )}
           </main>
 

@@ -14,7 +14,7 @@ dashed **Demo** label (or "Not wired yet").
 | **Home** | Waiting and running tasks, recent runs, spend, your projects with approved counts, run a task on a project (fills in the folder), search, filters, grid or list, stars (not saved), link to the review queue | Sample projects when you have none. The five-step bar says "Estimated" unless the daemon sent step events |
 | **New task** | Sends the `start` command with folder, task text, agent, model, and a model per step when that is on | The model names in the lists are fixed |
 | **All tasks** | Search, All / Active / Review filters, project filter, open a task, delete finished tasks | |
-| **One task** | **Approve, Reject, Stop, Resume, Delete**, failure reason, cost, time, model, live events in Logs and Timeline, Copy logs, **the real diff when the daemon stores one** | "Message the agent". **Sample code when there is no diff**. Sample comments. Commit message and file ticks (not sent). Split view and log level filter. Reports tab, including the milestone wording. Sample log and timeline lines when a task has no events |
+| **One task** | **Approve, Reject, Stop, Resume, Delete**, Try again on a failed task, failure reason, cost, time, model, live events in Logs and Timeline, Copy logs, **the real diff when the daemon stores one** | "Message the agent". **Sample code when there is no diff**. Sample comments. Commit message and file ticks (not sent). Split view and log level filter. Reports tab, including the milestone wording. Sample log and timeline lines when a task has no events |
 | **Review queue** | Lists waiting tasks, **Approve & commit, Reject**, open the task | |
 | **Projects** | Your projects, filter, a page per project with runs, counts and spend, new task on a project. "Add project" only opens New task with that folder | Sample projects when you have none. Project health. Branch and remote. Workflow, Memory and Settings tabs |
 | **Insights** | Task count, approval rate, spend, projects, models used, 14-day chart, recent tasks | The 7/30/90 day buttons do not filter |
@@ -43,6 +43,9 @@ The demo runner replays a fixed script. It does not read your task, edit files, 
   a throwaway git repository: start and approve, start and reject, delete, stop, resume. 10 of 10 steps passed.
 - **Screens.** Captured at 1440×900 and at the 1024×700 minimum, checked for sideways overflow and console errors.
   The sample-code warning was checked both ways: shown without a diff, hidden with a real one.
+- **Try again.** With a real daemon (demo runner, throwaway database): a task failed on the default agent, Try again on
+  the Logs tab filled in New task, nothing was sent until Start, and the second try reached waiting for approval. With
+  the stand-in daemon: a failed Claude Code task keeps its agent and model. 15 of 15 checks, no console errors.
 - Not covered: the packaged Tauri window, a real Claude Code run, a real cloud server, and use by another person.
 - The test script is not part of this repository.
 
@@ -66,6 +69,12 @@ The demo runner replays a fixed script. It does not read your task, edit files, 
   the daemon cannot run; sign-in says the password is not checked while the server is down.
 - Not built from the design: the review verdict, grouped changes, plan approval and line comments. Each needs backend
   work first.
+- New: **Try again** on a failed task. It opens New task with the same text and folder and creates a new task when you
+  click Start. If the daemon cannot run the old agent, Claude Code is selected and the form says so. The failed task
+  stays in history. Per-step model choices are not carried over, because the daemon does not send them back.
+- Also removed, none of which did anything: the accent colour picker, the Save buttons on General and Notifications,
+  the zoom buttons and rules note on Workflows, the cost comparison, routing health panel and side menu on Models &
+  Routing, and the project count strip on Home (it showed project, pending task and "orchestrated project" counts).
 - Build: 30 TypeScript errors on `main` are fixed with type-only changes (`src/types/auth.ts`).
 
 ## Problems found, not fixed here
