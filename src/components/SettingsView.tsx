@@ -2,7 +2,8 @@ import { useState } from "react";
 import { SettingsIcon, UserIcon, CpuIcon, BellIcon, MoonIcon, TerminalIcon, LogInIcon, LogOutIcon, EyeIcon } from "./Icons";
 import { cloudApi } from "../api/cloud";
 import { saveDeviceToken } from "../services/keychain";
-import type { AuthResult } from "@codehands/contracts";
+import { DemoNote, DemoTag } from "./Demo";
+import type { AuthResult } from "../types/auth";
 
 interface SettingsViewProps {
   userName?: string;
@@ -215,8 +216,9 @@ export function SettingsView({
       <div className="settings-content-pane">
         {activeSection === "general" && (
           <div className="settings-section-card">
-            <h2>General Workspace Settings</h2>
-            <p className="section-sub">Configure local directories, daemon preferences, and defaults.</p>
+            <h2>General <DemoTag /></h2>
+            <p className="section-sub">Folders, daemon preferences and defaults.</p>
+            <DemoNote>These settings are not saved or used yet.</DemoNote>
 
             <div className="form-group">
               <label>Default Repository Workspace Directory</label>
@@ -235,14 +237,14 @@ export function SettingsView({
               <label htmlFor="auto-diff">Automatically generate unified diff on task completion</label>
             </div>
 
-            <button className="btn-primary">Save Changes</button>
+            <button className="btn">Save Changes</button>
           </div>
         )}
 
         {activeSection === "account" && (
           <div className="settings-section-card">
-            <h2>Account &amp; Security</h2>
-            <p className="section-sub">Manage identity and device keychain credentials.</p>
+            <h2>Account</h2>
+            <p className="section-sub">Your sign-in on this device.</p>
 
             {isLoggedIn ? (
               /* ── Logged-in profile view ── */
@@ -254,7 +256,7 @@ export function SettingsView({
                   <div className="identity-info">
                     <strong>{userName}</strong>
                     <span>{userEmail}</span>
-                    <span className="identity-badge">Cloud Sync Active</span>
+                    <span><DemoTag label="Cloud sync: not connected yet" /></span>
                   </div>
                 </div>
 
@@ -271,11 +273,11 @@ export function SettingsView({
                 <div className="form-group">
                   <label>Email Address</label>
                   <input type="email" value={userEmail} readOnly style={{ opacity: 0.6, cursor: "not-allowed" }} />
-                  <small>Email is managed by CodeHands Cloud and cannot be changed here.</small>
+                  <small>Email cannot be changed here.</small>
                 </div>
 
                 <div className="form-group">
-                  <label>Change Password</label>
+                  <label>Change Password <DemoTag label="Not wired yet" /></label>
                   <div className="password-input-row">
                     <input
                       type={showNewPassword ? "text" : "password"}
@@ -295,7 +297,7 @@ export function SettingsView({
                 </div>
 
                 <div className="form-group">
-                  <label>Device Identifier</label>
+                  <label>Device Identifier <DemoTag label="Placeholder" /></label>
                   <input type="text" defaultValue="desktop-client-windows" readOnly />
                 </div>
 
@@ -304,7 +306,7 @@ export function SettingsView({
                     {saveSuccess ? "✓ Profile Saved" : "Save Profile"}
                   </button>
                   <button className="btn-danger" onClick={onLogout}>
-                    <LogOutIcon size={14} color="#fff" /> Sign Out
+                    <LogOutIcon size={14} color="#FF647C" /> Sign Out
                   </button>
                 </div>
               </>
@@ -454,7 +456,7 @@ export function SettingsView({
                   </p>
 
                   <div className="form-group" style={{ marginTop: 20 }}>
-                    <label>Device Identifier</label>
+                    <label>Device Identifier <DemoTag label="Placeholder" /></label>
                     <input type="text" defaultValue="desktop-client-windows" readOnly />
                     <small>CodeHands can also operate locally offline without cloud sync.</small>
                   </div>
@@ -466,8 +468,9 @@ export function SettingsView({
 
         {activeSection === "ai" && (
           <div className="settings-section-card">
-            <h2>AI &amp; Model Routing Configuration</h2>
-            <p className="section-sub">Set preferred models for autonomous tasks and phase routing.</p>
+            <h2>AI &amp; Model Routing <DemoTag /></h2>
+            <p className="section-sub">Preferred models.</p>
+            <DemoNote>Not saved yet. Choose the model for a task on the New task screen.</DemoNote>
 
             <div className="form-group">
               <label>Primary Planning Model</label>
@@ -486,14 +489,15 @@ export function SettingsView({
               </select>
             </div>
 
-            <button className="btn-primary">Update Model Preferences</button>
+            <button className="btn">Update Model Preferences</button>
           </div>
         )}
 
         {activeSection === "notifications" && (
           <div className="settings-section-card">
-            <h2>Notifications</h2>
-            <p className="section-sub">Configure when and how CodeHands notifies you.</p>
+            <h2>Notifications <DemoTag /></h2>
+            <p className="section-sub">When CodeHands should tell you.</p>
+            <DemoNote>Not saved yet. The bell in the top bar already shows waiting and failed tasks.</DemoNote>
             <div className="form-group checkbox-row">
               <input type="checkbox" id="notif-review" defaultChecked />
               <label htmlFor="notif-review">Notify when a task needs human review</label>
@@ -506,14 +510,14 @@ export function SettingsView({
               <input type="checkbox" id="notif-done" />
               <label htmlFor="notif-done">Notify when a task completes successfully</label>
             </div>
-            <button className="btn-primary">Save Preferences</button>
+            <button className="btn">Save Preferences</button>
           </div>
         )}
 
         {activeSection === "appearance" && (
           <div className="settings-section-card">
             <h2>Appearance &amp; Theme</h2>
-            <p className="section-sub">Customize the visual presentation of your engineering workspace.</p>
+            <p className="section-sub">The theme works. Accent colour and density are not wired yet.</p>
 
             <div className="form-group">
               <label>Interface Theme</label>
@@ -587,7 +591,7 @@ export function SettingsView({
             </div>
 
             <div className="form-group">
-              <label>Brand Primary Accent Color</label>
+              <label>Accent colour <DemoTag label="Not wired yet" /></label>
               <div className="accent-color-picker-row">
                 <button
                   type="button"
@@ -614,11 +618,10 @@ export function SettingsView({
                   title="Amber (#FFB547)"
                 />
               </div>
-              <small>Matches the exact cyan blue gradient from the official CodeHands logo.</small>
-            </div>
+                          </div>
 
             <div className="form-group">
-              <label>Workspace Density</label>
+              <label>Density <DemoTag label="Not wired yet" /></label>
               <select defaultValue="default">
                 <option value="compact">Compact (Higher information density)</option>
                 <option value="default">Comfortable (Default)</option>
@@ -630,31 +633,18 @@ export function SettingsView({
         {activeSection === "shortcuts" && (
           <div className="settings-section-card">
             <h2>Keyboard Shortcuts</h2>
+            <p className="section-sub">These work today.</p>
             <div className="shortcuts-table">
-              <div className="shortcut-row">
-                <span>Global Command Palette</span>
-                <kbd>Ctrl + K</kbd>
-              </div>
-              <div className="shortcut-row">
-                <span>Create New Task</span>
-                <kbd>Ctrl + N</kbd>
-              </div>
-              <div className="shortcut-row">
-                <span>Open Terminal Dock</span>
-                <kbd>Ctrl + `</kbd>
-              </div>
-              <div className="shortcut-row">
-                <span>Switch to Overview</span>
-                <kbd>G then O</kbd>
-              </div>
-              <div className="shortcut-row">
-                <span>Switch to Projects</span>
-                <kbd>G then P</kbd>
-              </div>
-              <div className="shortcut-row">
-                <span>Approve Current Changes</span>
-                <kbd>Ctrl + Enter</kbd>
-              </div>
+              <div className="shortcut-row"><span>Command palette</span><kbd>Ctrl + K</kbd></div>
+              <div className="shortcut-row"><span>New task</span><kbd>Ctrl + N</kbd></div>
+              <div className="shortcut-row"><span>Hide or show the sidebar</span><kbd>Ctrl + B</kbd></div>
+            </div>
+            <div className="sec-h"><span className="row">Planned <DemoTag label="Not wired yet" /></span></div>
+            <div className="shortcuts-table">
+              <div className="shortcut-row"><span>Open terminal</span><kbd>Ctrl + `</kbd></div>
+              <div className="shortcut-row"><span>Go to Home</span><kbd>G then O</kbd></div>
+              <div className="shortcut-row"><span>Go to Projects</span><kbd>G then P</kbd></div>
+              <div className="shortcut-row"><span>Approve current changes</span><kbd>Ctrl + Enter</kbd></div>
             </div>
           </div>
         )}

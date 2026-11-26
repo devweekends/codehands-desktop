@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { DesktopProject } from "./WorkspacePages";
 import type { DesktopSession } from "./TaskDetail";
-import { SearchIcon, PlusIcon, FolderIcon, BranchIcon, ArrowRightIcon } from "./Icons";
+import { PlusIcon, ArrowRightIcon } from "./Icons";
+import { DemoNote, DemoTag } from "./Demo";
 
 interface ProjectsViewProps {
   projects: DesktopProject[];
@@ -119,372 +120,207 @@ export function ProjectsView({
       (s.repo && currentProject?.path && s.repo.trim().toLowerCase() === currentProject.path.trim().toLowerCase())
   );
 
+  const usingDemoProjects = dedupedProjects.length === 0;
+  const TABS = [
+    ["overview", "Overview", false],
+    ["tasks", `Tasks (${projectSessions.length})`, false],
+    ["repository", "Repository", false],
+    ["workflows", "Workflow", true],
+    ["memory", "Memory", true],
+    ["settings", "Settings", true],
+  ] as const;
+
+  const runList = (
+    <div className="card list">
+      {projectSessions.map((s) => (
+        <div key={s.id} className="click run-row" onClick={() => onOpenSession(s.id)}>
+          <span className={`dot ${s.status}`} />
+          <div className="grow">
+            <div className="ell">{s.title || s.prompt || s.id}</div>
+            <div className="mut sm ell">{s.agent} · {s.model} · {new Date(s.createdAt).toLocaleDateString()}</div>
+          </div>
+          <span className={`pill ${s.status}`}>{s.status.replace(/_/g, " ")}</span>
+          <span className="mono mut">${(s.costUsd || 0).toFixed(2)}</span>
+          <ArrowRightIcon size={12} />
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="projects-view-layout">
-      {/* Sidebar: Projects List */}
-      <div className="projects-list-sidebar">
-        <div className="list-sidebar-header">
-          <div className="title-row">
-            <h2>Projects</h2>
-            <button
-              className="btn-icon-add"
-              onClick={() => setIsAddModalOpen(true)}
-              title="Add Project"
-            >
-              <PlusIcon size={14} />
+      <div className="pane-list">
+        <div className="pane-list-head">
+          <div className="row">
+            <h2 className="grow">Projects</h2>
+            {usingDemoProjects && <DemoTag />}
+            <button className="btn sm" onClick={() => setIsAddModalOpen(true)} title="Add project">
+              <PlusIcon size={13} />
             </button>
           </div>
-          <div className="search-input-wrap">
-            <SearchIcon size={13} color="#666C7E" />
-            <input
-              type="text"
-              placeholder="Filter projects..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+          <input type="text" placeholder="Filter projects..." value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-
-        <div className="projects-list-items">
+        <div className="pane-list-body">
           {filteredProjects.map((p) => (
             <button
               key={p.id}
-              className={`project-sidebar-item ${currentProject?.id === p.id ? "active" : ""}`}
+              className={`pick-row ${p.id === currentProject?.id ? "active" : ""}`}
               onClick={() => setActiveProjectId(p.id)}
             >
-              <div className="project-avatar-box">
-                {p.name.slice(0, 1).toUpperCase()}
+              <div className="grow">
+                <div className="ell">{p.name}</div>
+                <div className="mono mut ell">{p.path}</div>
               </div>
-              <div className="project-sidebar-info">
-                <strong>{p.name}</strong>
-                <small title={p.path}>{p.path}</small>
-              </div>
-              <span className="runs-counter">{p.sessionCount} runs</span>
+              <span className="mut sm">{p.sessionCount}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Main Panel: Project Details */}
-      <div className="project-detail-panel">
+      <div className="pane-main">
         {currentProject ? (
           <>
-            {/* Project Header */}
-            <div className="project-main-header">
-              <div className="header-meta">
-                <div className="badge-row">
-                  <span className="repo-type-tag">LOCAL GIT REPOSITORY</span>
-                  <span className="branch-tag">
-                    <BranchIcon size={11} /> main
-                  </span>
+            <div className="task-head">
+              <div className="task-head-top">
+                <div className="task-head-title">
+                  <h2 className="ell">{currentProject.name}</h2>
+                  <div className="mono mut ell">{currentProject.path}</div>
                 </div>
-                <h1>{currentProject.name}</h1>
-                <p className="repo-path-label" title={currentProject.path}>
-                  <FolderIcon size={13} color="#666C7E" /> {currentProject.path}
-                </p>
-              </div>
-
-              <div className="header-actions">
-                <button
-                  className="btn-primary"
-                  onClick={() => onNewTask(currentProject.path)}
-                >
-                  <PlusIcon size={14} color="#ffffff" />
-                  <span>New Task on Project</span>
+                <button className="btn primary" onClick={() => onNewTask(currentProject.path)}>
+                  <PlusIcon size={13} color="#ffffff" />
+                  New Task on Project
                 </button>
               </div>
+              <div className="tabs">
+                {TABS.map(([id, label, demo]) => (
+                  <button key={id} className={activeTab === id ? "active" : ""} onClick={() => setActiveTab(id)}>
+                    {label}
+                    {demo && <DemoTag label="Demo" />}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Tab Navigation */}
-            <div className="project-tabs-nav" role="tablist">
-              <button
-                className={`tab-btn ${activeTab === "overview" ? "active" : ""}`}
-                onClick={() => setActiveTab("overview")}
-              >
-                Overview
-              </button>
-              <button
-                className={`tab-btn ${activeTab === "tasks" ? "active" : ""}`}
-                onClick={() => setActiveTab("tasks")}
-              >
-                Tasks ({projectSessions.length || currentProject.sessionCount})
-              </button>
-              <button
-                className={`tab-btn ${activeTab === "repository" ? "active" : ""}`}
-                onClick={() => setActiveTab("repository")}
-              >
-                Repository
-              </button>
-              <button
-                className={`tab-btn ${activeTab === "workflows" ? "active" : ""}`}
-                onClick={() => setActiveTab("workflows")}
-              >
-                Workflows
-              </button>
-              <button
-                className={`tab-btn ${activeTab === "memory" ? "active" : ""}`}
-                onClick={() => setActiveTab("memory")}
-              >
-                Memory
-              </button>
-              <button
-                className={`tab-btn ${activeTab === "settings" ? "active" : ""}`}
-                onClick={() => setActiveTab("settings")}
-              >
-                Settings
-              </button>
-            </div>
+            <div className="pane-scroll">
+              <div className="col">
+                {usingDemoProjects && <DemoNote>This is a sample project. Yours appear here after you run your first task.</DemoNote>}
 
-            {/* Tab Contents */}
-            <div className="project-tab-content">
-              {activeTab === "overview" && (
-                <div className="overview-tab-pane">
-                  <div className="overview-stats-grid">
-                    <div className="stat-card">
-                      <span className="stat-label">TOTAL SESSIONS</span>
-                      <strong className="stat-val">{currentProject.sessionCount || 8}</strong>
-                      <span className="stat-sub">Across 5 branches</span>
+                {activeTab === "overview" && (
+                  <>
+                    <div className="card pad stat">
+                      <span className="mut sm">Tasks recorded for this project</span>
+                      <b>{currentProject.sessionCount}</b>
                     </div>
-                    <div className="stat-card">
-                      <span className="stat-label">COMPLETED WORK</span>
-                      <strong className="stat-val">94%</strong>
-                      <span className="stat-sub">Passing tests</span>
-                    </div>
-                    <div className="stat-card">
-                      <span className="stat-label">TOTAL AI USAGE</span>
-                      <strong className="stat-val">$4.82</strong>
-                      <span className="stat-sub">342k tokens orchestrated</span>
-                    </div>
-                    <div className="stat-card">
-                      <span className="stat-label">INTEGRATED REPO</span>
-                      <strong className="stat-val">Connected</strong>
-                      <span className="stat-sub">Local Git Watcher</span>
-                    </div>
-                  </div>
-
-                  <div className="recent-runs-block">
-                    <h3>Recent Project Runs</h3>
+                    <div className="sec-h"><span>Recent runs</span></div>
                     {projectSessions.length === 0 ? (
-                      <div className="empty-runs-card">
-                        <p>No recorded sessions yet for this workspace path.</p>
-                        <button
-                          className="btn-secondary"
-                          onClick={() => onNewTask(currentProject.path)}
-                        >
-                          Run task on {currentProject.name}
-                        </button>
+                      <div className="card empty">
+                        <p>No runs recorded for this folder yet.</p>
+                        <button className="btn" onClick={() => onNewTask(currentProject.path)}>Run a task on {currentProject.name}</button>
                       </div>
                     ) : (
-                      <div className="runs-table">
-                        {projectSessions.map((s) => (
-                          <div
-                            key={s.id}
-                            className="run-row"
-                            onClick={() => onOpenSession(s.id)}
-                          >
-                            <span className={`status-dot-badge status-${s.status}`} />
-                            <div className="run-main">
-                              <strong>{s.title || s.prompt || s.id}</strong>
-                              <small>{s.agent} · {s.model}</small>
-                            </div>
-                            <span className="run-cost">${(s.costUsd || 0).toFixed(2)}</span>
-                            <span className="run-time">
-                              {new Date(s.createdAt).toLocaleDateString()}
-                            </span>
-                            <ArrowRightIcon size={12} color="#666C7E" />
-                          </div>
-                        ))}
-                      </div>
+                      runList
                     )}
-                  </div>
-                </div>
-              )}
+                    <div className="sec-h"><span className="row">Project health <DemoTag /></span></div>
+                    <div className="grid3">
+                      <div className="card pad stat"><span className="mut sm">Completed work</span><b>94%</b><span className="mut sm">Passing tests</span></div>
+                      <div className="card pad stat"><span className="mut sm">AI usage</span><b>$4.82</b><span className="mut sm">342k tokens</span></div>
+                      <div className="card pad stat"><span className="mut sm">Repository</span><b>Connected</b><span className="mut sm">Across 5 branches</span></div>
+                    </div>
+                  </>
+                )}
 
-              {activeTab === "tasks" && (
-                <div className="tasks-tab-pane">
-                  <div className="tasks-pane-toolbar">
-                    <p>All automated and human-reviewed tasks for {currentProject.name}</p>
-                    <button
-                      className="btn-primary"
-                      onClick={() => onNewTask(currentProject.path)}
-                    >
-                      <PlusIcon size={13} color="#ffffff" />
-                      <span>New Task</span>
-                    </button>
-                  </div>
-                  <div className="tasks-list-cards">
-                    {projectSessions.length > 0 ? (
-                      projectSessions.map((s) => (
-                        <div
-                          key={s.id}
-                          className="project-task-card"
-                          onClick={() => onOpenSession(s.id)}
-                        >
-                          <div className="task-card-top">
-                            <span className={`status-pill ${s.status}`}>
-                              {s.status.replace(/_/g, " ")}
-                            </span>
-                            <span className="cost-tag">${(s.costUsd || 0).toFixed(2)}</span>
-                          </div>
-                          <h4>{s.title || s.prompt || `Task ${s.id.slice(0, 8)}`}</h4>
-                          <div className="task-card-bottom">
-                            <span>Agent: {s.agent}</span>
-                            <span>Model: {s.model}</span>
-                            <span>{new Date(s.createdAt).toLocaleString()}</span>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="empty-runs-card">
-                        <p>No active tasks for this project.</p>
-                        <button
-                          className="btn-primary"
-                          onClick={() => onNewTask(currentProject.path)}
-                        >
-                          Create first task
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+                {activeTab === "tasks" &&
+                  (projectSessions.length > 0 ? (
+                    runList
+                  ) : (
+                    <div className="card empty">
+                      <p>No tasks for this project yet.</p>
+                      <button className="btn" onClick={() => onNewTask(currentProject.path)}>Create first task</button>
+                    </div>
+                  ))}
 
-              {activeTab === "repository" && (
-                <div className="repository-tab-pane">
-                  <div className="repo-info-card">
-                    <h3>Repository Details</h3>
-                    <div className="repo-info-row">
-                      <span>Working Directory:</span>
-                      <code>{currentProject.path}</code>
+                {activeTab === "repository" && (
+                  <>
+                    <div className="card">
+                      <div className="repo-info-row"><span>Working folder</span><code>{currentProject.path}</code></div>
                     </div>
-                    <div className="repo-info-row">
-                      <span>Active Branch:</span>
-                      <code>main</code>
+                    <div className="sec-h"><span className="row">Git details <DemoTag /></span></div>
+                    <div className="card">
+                      <div className="repo-info-row"><span>Active branch</span><code>main</code></div>
+                      <div className="repo-info-row"><span>Git remote</span><code>origin (git@github.com:devweekends/{currentProject.id}.git)</code></div>
+                      <div className="repo-info-row"><span>Daemon sync</span><span>Active file watcher</span></div>
                     </div>
-                    <div className="repo-info-row">
-                      <span>Git Remote:</span>
-                      <code>origin (git@github.com:devweekends/{currentProject.id}.git)</code>
-                    </div>
-                    <div className="repo-info-row">
-                      <span>Local Daemon Sync:</span>
-                      <span className="sync-status online">Active file watcher</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+                  </>
+                )}
 
-              {activeTab === "workflows" && (
-                <div className="workflows-tab-pane">
-                  <div className="workflow-card-item">
-                    <div className="wf-head">
-                      <div>
-                        <h4>Autonomous Feature Development</h4>
-                        <p>Analyze → Plan → Implement → Test → Human Approval</p>
-                      </div>
-                      <span className="status-badge active">Default Workflow</span>
+                {activeTab === "workflows" && (
+                  <>
+                    <DemoNote>A sample workflow. It is not used when a task runs.</DemoNote>
+                    <div className="card list">
+                      {["Analyze · Claude 3.5 Sonnet", "Plan · Claude 3.5 Sonnet", "Implement · Qwen 2.5 Coder", "Test · Haiku / Mini", "Review · you"].map((step, i) => (
+                        <div key={step}><span className="mut">{i + 1}</span><span>{step}</span></div>
+                      ))}
                     </div>
-                    <div className="wf-phases-preview">
-                      <span className="phase-step">Analyze (Claude 3.5 Sonnet)</span>
-                      <span className="arrow">→</span>
-                      <span className="phase-step">Plan (Claude 3.5 Sonnet)</span>
-                      <span className="arrow">→</span>
-                      <span className="phase-step">Implement (Qwen 2.5 Coder)</span>
-                      <span className="arrow">→</span>
-                      <span className="phase-step">Test (Haiku / Mini)</span>
-                      <span className="arrow">→</span>
-                      <span className="phase-step review">Review (Human In Loop)</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+                  </>
+                )}
 
-              {activeTab === "memory" && (
-                <div className="memory-tab-pane">
-                  <div className="memory-box">
-                    <h3>Repository Knowledge Base</h3>
-                    <p className="memory-desc">
-                      CodeHands AI parses architectural patterns, coding conventions, and testing
-                      standards to guide all coding tasks in this repository.
-                    </p>
-                    <div className="memory-section">
-                      <h4>Architectural Conventions</h4>
-                      <ul>
-                        <li>React 19 + TypeScript + Vite with custom CSS design tokens.</li>
-                        <li>Clean architecture separation between API boundaries, state, and UI.</li>
-                        <li>All user-facing components require accessibility attributes and keyboard traps.</li>
-                      </ul>
+                {activeTab === "memory" && (
+                  <>
+                    <DemoNote>Sample notes. They are not read from your repository.</DemoNote>
+                    <div className="sec-h"><span>Conventions</span></div>
+                    <div className="card list">
+                      <div>React 19 + TypeScript + Vite with custom CSS design tokens.</div>
+                      <div>Clear separation between API boundaries, state and UI.</div>
+                      <div>All user-facing components need accessibility attributes and keyboard traps.</div>
                     </div>
-                    <div className="memory-section">
-                      <h4>Key Files & Entrypoints</h4>
-                      <ul>
-                        <li><code>src/App.tsx</code> — Main desktop workspace shell & routing</li>
-                        <li><code>src/App.css</code> — Global design tokens & responsive system</li>
-                        <li><code>src/components/TaskDetail.tsx</code> — Execution, Changes, Logs, Artifacts, Timeline</li>
-                      </ul>
+                    <div className="sec-h"><span>Key files</span></div>
+                    <div className="card list">
+                      <div><code>src/App.tsx</code><span className="mut">Main desktop shell and routing</span></div>
+                      <div><code>src/App.css</code><span className="mut">Design tokens and layout</span></div>
+                      <div><code>src/components/TaskDetail.tsx</code><span className="mut">Shared task types</span></div>
                     </div>
-                  </div>
-                </div>
-              )}
+                  </>
+                )}
 
-              {activeTab === "settings" && (
-                <div className="settings-tab-pane">
-                  <div className="settings-form-group">
-                    <label>Project Display Name</label>
-                    <input type="text" defaultValue={currentProject.name} />
-                  </div>
-                  <div className="settings-form-group">
-                    <label>Filesystem Path</label>
-                    <input type="text" defaultValue={currentProject.path} readOnly />
-                  </div>
-                  <div className="settings-form-group">
-                    <label>Default Branch</label>
-                    <input type="text" defaultValue="main" />
-                  </div>
-                  <button className="btn-primary">Save Project Configuration</button>
-                </div>
-              )}
+                {activeTab === "settings" && (
+                  <>
+                    <DemoNote>These settings are not saved yet.</DemoNote>
+                    <div className="card pad">
+                      <div className="form-group"><label>Project name</label><input type="text" key={currentProject.id} defaultValue={currentProject.name} /></div>
+                      <div className="form-group"><label>Folder</label><input type="text" value={currentProject.path} readOnly /></div>
+                      <div className="form-group"><label>Default branch</label><input type="text" defaultValue="main" /></div>
+                      <button className="btn">Save project settings</button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </>
         ) : (
-          <div className="empty-project-select">
-            <p>Select a project from the left or add a new repository.</p>
+          <div className="empty">
+            <p>Select a project on the left, or add a repository.</p>
           </div>
         )}
       </div>
 
-      {/* Add Project Modal */}
       {isAddModalOpen && (
         <div className="modal-backdrop" onClick={() => setIsAddModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Connect Local Project</h3>
+              <h2>Add a project</h2>
               <button className="btn-close" onClick={() => setIsAddModalOpen(false)}>×</button>
             </div>
             <div className="modal-body">
-              <label>Project Name</label>
-              <input
-                type="text"
-                placeholder="e.g. My Next.js Service"
-                value={newProjectName}
-                onChange={(e) => setNewProjectName(e.target.value)}
-              />
-              <label>Local Repository Path</label>
-              <input
-                type="text"
-                placeholder="e.g. D:\dev\my-app"
-                value={newProjectPath}
-                onChange={(e) => setNewProjectPath(e.target.value)}
-              />
-              <p className="modal-hint">
-                CodeHands will monitor this directory locally and stage changes for your review.
-              </p>
+              <label>Project name</label>
+              <input type="text" placeholder="e.g. My Next.js Service" value={newProjectName} onChange={(e) => setNewProjectName(e.target.value)} />
+              <label>Local repository path</label>
+              <input type="text" placeholder="e.g. D:\dev\my-app" value={newProjectPath} onChange={(e) => setNewProjectPath(e.target.value)} />
+              <p className="modal-hint">The project is saved when you start its first task.</p>
             </div>
             <div className="modal-footer">
-              <button className="btn-secondary" onClick={() => setIsAddModalOpen(false)}>
-                Cancel
-              </button>
+              <button className="btn ghost" onClick={() => setIsAddModalOpen(false)}>Cancel</button>
               <button
-                className="btn-primary"
+                className="btn primary"
                 onClick={() => {
                   if (newProjectName && newProjectPath) {
                     setIsAddModalOpen(false);
@@ -492,7 +328,7 @@ export function ProjectsView({
                   }
                 }}
               >
-                Connect & Start Task
+                Connect &amp; start task
               </button>
             </div>
           </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { AgentKind, CommandKind, AuthResult } from "@codehands/contracts";
+import type { AgentKind, CommandKind } from "@codehands/contracts";
+import type { AuthResult } from "./types/auth";
 import { cloudApi } from "./api/cloud";
 import { getDeviceToken, deleteDeviceToken } from "./services/keychain";
 

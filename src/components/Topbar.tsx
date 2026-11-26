@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import type { NavView } from "./AppSidebar";
 import type { DesktopSession } from "./TaskDetail";
-import { SearchIcon, PlusIcon, BellIcon, SunIcon, MoonIcon, CheckCircleIcon, ReviewIcon } from "./Icons";
+import { SearchIcon, BellIcon, SunIcon, MoonIcon, CheckCircleIcon, ReviewIcon } from "./Icons";
 
 interface TopbarProps {
   currentView: NavView;
@@ -23,18 +23,18 @@ interface TopbarProps {
 }
 
 const VIEW_TITLES: Record<NavView, string> = {
-  overview: "Workspace Overview",
+  overview: "Home",
   projects: "Projects",
   "project-detail": "Project Details",
-  tasks: "Task Workspace",
+  tasks: "Tasks",
   workflows: "Workflow Builder",
-  review: "Review Queue",
+  review: "Review",
   models: "Models & Routing",
   memory: "Repository Memory",
   scheduler: "Scheduler & Queue",
   environments: "Environments",
   runtime: "Runtime & Logs",
-  analytics: "Usage & Analytics",
+  analytics: "Insights",
   integrations: "Integrations",
   security: "Security",
   settings: "Settings",
@@ -47,7 +47,6 @@ export function Topbar({
   theme,
   onToggleTheme,
   onOpenCommandPalette,
-  onNewTask,
   notificationCount = 0,
   sessions = [],
   onSelectSession,
@@ -133,20 +132,15 @@ export function Topbar({
       <div className="topbar-center">
         <button className="topbar-search-trigger" onClick={onOpenCommandPalette}>
           <SearchIcon size={14} color="#666C7E" />
-          <span className="search-placeholder">Search workspace, tasks, models...</span>
+          <span className="search-placeholder">Search or run a command</span>
           <kbd className="topbar-kbd">Ctrl+K</kbd>
         </button>
       </div>
 
       <div className="topbar-right">
-        <button className="btn-topbar-new" onClick={onNewTask}>
-          <PlusIcon size={13} color="#ffffff" />
-          <span>New Task</span>
-        </button>
-
         <span className={`connection-pill ${connected ? "connected" : "disconnected"}`}>
           <i className="status-dot" />
-          <span className="connection-text">{connected ? "Daemon Active" : "Offline"}</span>
+          <span className="connection-text">{connected ? "Daemon active" : "Offline"}</span>
         </span>
 
         {/* Notifications Button & Dropdown */}

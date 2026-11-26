@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { AgentKind } from "@codehands/contracts";
-import { FolderIcon, CpuIcon, WorkflowIcon, ArrowRightIcon, AlertTriangleIcon } from "./Icons";
+import { FolderIcon, ArrowRightIcon, AlertTriangleIcon } from "./Icons";
 
 interface NewTaskFormProps {
   connected: boolean;
@@ -86,11 +86,11 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
         {/* Top Header */}
         <div className="new-task-header">
           <button type="button" className="btn-back-link" onClick={onCancel}>
-            ← Back to workspace
+            ← Back to Home
           </button>
           <div className="header-title-block">
-            <h1>Create New Task</h1>
-            <p>Describe your engineering task. CodeHands will analyze, plan, and stage changes in your local workspace.</p>
+            <h1>What should we build or fix?</h1>
+            <p className="sub">Describe it like you would to a teammate. You approve the change before it is committed.</p>
           </div>
         </div>
 
@@ -115,17 +115,14 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
         <form className="new-task-form" onSubmit={handleSubmit}>
           {/* Prompt Specification */}
           <div className="composer-card">
-            <div className="composer-card-header">
-              <label htmlFor="task-prompt">Task Specification & Prompt</label>
-              <span className="helper-tag">Markdown & context supported</span>
-            </div>
             <textarea
               id="task-prompt"
+              aria-label="Task description"
               className="prompt-textarea"
               rows={5}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe what you want the autonomous agent to build or fix...&#10;&#10;e.g. Add JWT authentication middleware to the API endpoints and write unit tests covering token refresh and expiration."
+              placeholder="For example: add input validation to the signup form and a test for an empty email"
               required
               autoFocus
             />
@@ -142,36 +139,35 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
                   required
                 />
               </div>
-              <span className="repo-badge">Local Git Directory</span>
+              <span className="mut sm">Local git folder</span>
             </div>
           </div>
 
           {/* Configuration Grid: Agent & Model */}
           <div className="config-grid-cards">
             <div className="config-card">
-              <div className="config-card-header">
-                <WorkflowIcon size={16} color="#27B7F5" />
-                <label>Autonomous Agent Engine</label>
-              </div>
+              <label>Agent</label>
               <select value={agent} onChange={(e) => handleAgentChange(e.target.value as AgentKind)}>
                 <option value="codehands">CodeHands Native Orchestrator (Multi-Phase)</option>
                 <option value="claude-code">Claude Code CLI</option>
                 <option value="codex">Codex CLI</option>
               </select>
-              <span className="config-note">Multi-phase orchestration with automatic retry and validation.</span>
+              {agent === "claude-code" ? (
+                <span className="config-note">Runs Claude Code in a separate copy of your repo.</span>
+              ) : (
+                <span className="config-note warn">
+                  The current daemon only runs Claude Code and Codex{agent === "codehands" ? ", so this agent will fail. Pick Claude Code." : "."}
+                </span>
+              )}
             </div>
 
             <div className="config-card">
-              <div className="config-card-header">
-                <CpuIcon size={16} color="#27B7F5" />
-                <label>Primary AI Model</label>
-              </div>
+              <label>Model</label>
               <select value={model} onChange={(e) => setModel(e.target.value)}>
                 {(AVAILABLE_MODELS[agent] || []).map((m) => (
                   <option key={m} value={m}>{m}</option>
                 ))}
               </select>
-              <span className="config-note">Dispatched for code synthesis and AST modifications.</span>
             </div>
           </div>
 
@@ -182,8 +178,8 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
               className="accordion-toggle-btn"
               onClick={() => setShowAdvanced(!showAdvanced)}
             >
-              <span>{showAdvanced ? "▾" : "▸"} Advanced Multi-Phase Model Routing</span>
-              <span className="badge-optional">{showAdvanced ? "Active" : "Configure per phase"}</span>
+              <span>{showAdvanced ? "▾" : "▸"} A different model for each step</span>
+              <span className="mut sm">{showAdvanced ? "On" : "Optional"}</span>
             </button>
 
             {showAdvanced && (
@@ -209,15 +205,15 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
 
           {/* Form Actions */}
           <div className="composer-actions-bar">
-            <button type="button" className="btn-cancel" onClick={onCancel}>
+            <button type="button" className="btn ghost btn-cancel" onClick={onCancel}>
               Cancel
             </button>
             <button
               type="submit"
-              className="btn-submit-task"
+              className="btn primary lg btn-submit-task"
               disabled={!prompt.trim() || !repo.trim()}
             >
-              <span>Start Autonomous Orchestration</span>
+              <span>Start task</span>
               <ArrowRightIcon size={14} color="#ffffff" />
             </button>
           </div>

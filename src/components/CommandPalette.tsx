@@ -36,9 +36,8 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     },
     {
       id: "view-overview",
-      title: "Go to Dashboard Overview",
+      title: "Go to Home",
       category: "Navigation",
-      shortcut: "G O",
       symbol: "O",
       action: () => {
         onNavigate("overview");
@@ -49,7 +48,6 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
       id: "view-projects",
       title: "Go to Projects",
       category: "Navigation",
-      shortcut: "G P",
       symbol: "P",
       action: () => {
         onNavigate("projects");
@@ -60,7 +58,6 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
       id: "view-tasks",
       title: "Go to Task Workspace",
       category: "Navigation",
-      shortcut: "G T",
       symbol: "T",
       action: () => {
         onNavigate("tasks");
@@ -71,7 +68,6 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
       id: "view-workflows",
       title: "Open Workflow Builder",
       category: "Views",
-      shortcut: "G W",
       symbol: "W",
       action: () => {
         onNavigate("workflows");
@@ -82,7 +78,6 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
       id: "view-review",
       title: "Open Review Queue",
       category: "Views",
-      shortcut: "G R",
       symbol: "R",
       action: () => {
         onNavigate("review");
@@ -93,7 +88,6 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
       id: "view-models",
       title: "Models & Routing Hub",
       category: "Views",
-      shortcut: "G M",
       symbol: "M",
       action: () => {
         onNavigate("models");
@@ -124,7 +118,6 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
       id: "view-settings",
       title: "Open Settings",
       category: "Settings",
-      shortcut: "Ctrl+,",
       symbol: "S",
       action: () => {
         onNavigate("settings");
