@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { AuthResult } from "@codehands/contracts";
+import type { AuthResult } from "../types/auth";
 import { cloudApi } from "../api/cloud";
 import { saveDeviceToken } from "../services/keychain";
 import { CodeHandsLogo } from "./CodeHandsLogo";
@@ -151,8 +151,8 @@ export function AuthModal({ isOpen, isExpiredPrompt, isRequired = false, onSucce
           <div className="auth-brand-head">
             <CodeHandsLogo size={36} />
             <div className="auth-head-text">
-              <h2>{mode === "login" ? "Sign In to CodeHands AI" : "Create your account"}</h2>
-              <p>{mode === "login" ? "Enter your credentials to sync your local workspace." : "Get started with autonomous engineering orchestration."}</p>
+              <h2>{mode === "login" ? "Welcome back" : "Create your account"}</h2>
+              <p>{mode === "login" ? "Sign in to CodeHands." : "Set up your CodeHands account."}</p>
             </div>
           </div>
           {onClose && !isExpiredPrompt && !isRequired && (
@@ -171,6 +171,7 @@ export function AuthModal({ isOpen, isExpiredPrompt, isRequired = false, onSucce
         {serverAvailable === false && (
           <div className="auth-notice-alert offline">
             {serverIssue || `Sign-in server is unreachable at ${cloudApi.getBaseUrl()}. Running in local-only mode.`}
+            <div className="mut">If you continue, you are signed in on this laptop only, and your password is not checked.</div>
           </div>
         )}
 
@@ -213,7 +214,7 @@ export function AuthModal({ isOpen, isExpiredPrompt, isRequired = false, onSucce
                 <button
                   type="button"
                   className="auth-link-subtle"
-                  onClick={() => setError("Password reset email sent to " + (email || "your inbox."))}
+                  onClick={() => setError("Demo: password reset is not built yet. No email was sent.")}
                 >
                   Forgot password?
                 </button>

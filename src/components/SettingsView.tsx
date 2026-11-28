@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { SettingsIcon, UserIcon, CpuIcon, BellIcon, MoonIcon, TerminalIcon, LogInIcon, LogOutIcon, EyeIcon } from "./Icons";
+import { SettingsIcon, UserIcon, CpuIcon, TerminalIcon, LogInIcon, LogOutIcon, EyeIcon } from "./Icons";
 import { cloudApi } from "../api/cloud";
 import { saveDeviceToken } from "../services/keychain";
-import type { AuthResult } from "@codehands/contracts";
+import { DemoNote, DemoTag } from "./Demo";
+import type { AuthResult } from "../types/auth";
 
 interface SettingsViewProps {
   userName?: string;
@@ -14,6 +15,15 @@ interface SettingsViewProps {
   onAuthSuccess?: (auth: AuthResult) => void;
 }
 
+type Section = "general" | "account" | "ai" | "shortcuts";
+
+const SETTINGS_NAV: { section: Section; label: string; Icon: typeof SettingsIcon; demo?: boolean }[] = [
+  { section: "general", label: "General", Icon: SettingsIcon },
+  { section: "account", label: "Account", Icon: UserIcon },
+  { section: "ai", label: "AI & model routing", Icon: CpuIcon, demo: true },
+  { section: "shortcuts", label: "Shortcuts", Icon: TerminalIcon },
+];
+
 export function SettingsView({
   userName,
   userEmail,
@@ -23,9 +33,7 @@ export function SettingsView({
   onOpenAuth,
   onAuthSuccess,
 }: SettingsViewProps) {
-  const [activeSection, setActiveSection] = useState<
-    "general" | "account" | "ai" | "notifications" | "appearance" | "shortcuts"
-  >("account");
+  const [activeSection, setActiveSection] = useState<Section>("account");
 
   // Auth form state
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
@@ -172,42 +180,17 @@ export function SettingsView({
       <div className="settings-subnav">
         <h3>Settings</h3>
         <nav className="settings-nav-list">
-          <button
-            className={`settings-nav-btn ${activeSection === "general" ? "active" : ""}`}
-            onClick={() => setActiveSection("general")}
-          >
-            <SettingsIcon size={16} /> General
-          </button>
-          <button
-            className={`settings-nav-btn ${activeSection === "account" ? "active" : ""}`}
-            onClick={() => setActiveSection("account")}
-          >
-            <UserIcon size={16} /> Account &amp; Profile
-          </button>
-          <button
-            className={`settings-nav-btn ${activeSection === "ai" ? "active" : ""}`}
-            onClick={() => setActiveSection("ai")}
-          >
-            <CpuIcon size={16} /> AI &amp; Model Routing
-          </button>
-          <button
-            className={`settings-nav-btn ${activeSection === "notifications" ? "active" : ""}`}
-            onClick={() => setActiveSection("notifications")}
-          >
-            <BellIcon size={16} /> Notifications
-          </button>
-          <button
-            className={`settings-nav-btn ${activeSection === "appearance" ? "active" : ""}`}
-            onClick={() => setActiveSection("appearance")}
-          >
-            <MoonIcon size={16} /> Appearance &amp; Theme
-          </button>
-          <button
-            className={`settings-nav-btn ${activeSection === "shortcuts" ? "active" : ""}`}
-            onClick={() => setActiveSection("shortcuts")}
-          >
-            <TerminalIcon size={16} /> Keyboard Shortcuts
-          </button>
+          {SETTINGS_NAV.map((item) => (
+            <button
+              key={item.section}
+              className={`settings-nav-btn ${activeSection === item.section ? "active" : ""}`}
+              onClick={() => setActiveSection(item.section)}
+            >
+              <item.Icon size={15} />
+              <span className="grow">{item.label}</span>
+              {item.demo && <DemoTag label="Demo" />}
+            </button>
+          ))}
         </nav>
       </div>
 
@@ -215,34 +198,52 @@ export function SettingsView({
       <div className="settings-content-pane">
         {activeSection === "general" && (
           <div className="settings-section-card">
-            <h2>General Workspace Settings</h2>
-            <p className="section-sub">Configure local directories, daemon preferences, and defaults.</p>
+            <h2>General</h2>
+            <p className="section-sub">How the app looks and when it should tell you.</p>
 
-            <div className="form-group">
-              <label>Default Repository Workspace Directory</label>
-              <input type="text" defaultValue="D:\dev" />
-              <small>Local workspace parent folder scanned by CodeHands</small>
+            <div className="card">
+              <div className="set-row">
+                <div className="grow">Theme<small>Works now. It is not remembered after a restart</small></div>
+                <div className="seg">
+                  <button className={theme === "dark" ? "active" : ""} onClick={() => { if (theme !== "dark") onToggleTheme(); }}>Dark</button>
+                  <button className={theme === "light" ? "active" : ""} onClick={() => { if (theme !== "light") onToggleTheme(); }}>Light</button>
+                </div>
+              </div>
+              <div className="set-row">
+                <div className="grow">Density<small>Not wired yet</small></div>
+                <select style={{ width: 200 }} defaultValue="default">
+                  <option value="compact">Compact</option>
+                  <option value="default">Comfortable</option>
+                </select>
+              </div>
             </div>
 
-            <div className="form-group">
-              <label>Local Daemon WebSocket Port</label>
-              <input type="text" defaultValue="8788" />
-              <small>Bridge address: ws://127.0.0.1:8788</small>
+            <div className="sec-h"><span className="row">Notify me when <DemoTag label="Not saved yet" /></span></div>
+            <div className="card">
+              <label className="set-row"><span className="grow">A change is ready for review</span><input type="checkbox" defaultChecked /></label>
+              <label className="set-row"><span className="grow">A task fails</span><input type="checkbox" defaultChecked /></label>
+              <label className="set-row"><span className="grow">A task finishes successfully</span><input type="checkbox" /></label>
             </div>
 
-            <div className="form-group checkbox-row">
-              <input type="checkbox" id="auto-diff" defaultChecked />
-              <label htmlFor="auto-diff">Automatically generate unified diff on task completion</label>
+            <div className="sec-h"><span className="row">Workspace <DemoTag label="Not saved yet" /></span></div>
+            <div className="card pad">
+              <div className="form-group">
+                <label>Default repository folder</label>
+                <input type="text" defaultValue="D:\dev" />
+              </div>
+              <div className="form-group">
+                <label>Local daemon port</label>
+                <input type="text" defaultValue="8788" />
+              </div>
+              <label className="row"><input type="checkbox" defaultChecked /> Create a unified diff when a task completes</label>
             </div>
-
-            <button className="btn-primary">Save Changes</button>
           </div>
         )}
 
         {activeSection === "account" && (
           <div className="settings-section-card">
-            <h2>Account &amp; Security</h2>
-            <p className="section-sub">Manage identity and device keychain credentials.</p>
+            <h2>Account</h2>
+            <p className="section-sub">Your sign-in on this device.</p>
 
             {isLoggedIn ? (
               /* ── Logged-in profile view ── */
@@ -254,7 +255,7 @@ export function SettingsView({
                   <div className="identity-info">
                     <strong>{userName}</strong>
                     <span>{userEmail}</span>
-                    <span className="identity-badge">Cloud Sync Active</span>
+                    <span><DemoTag label="Cloud sync: not connected yet" /></span>
                   </div>
                 </div>
 
@@ -271,11 +272,11 @@ export function SettingsView({
                 <div className="form-group">
                   <label>Email Address</label>
                   <input type="email" value={userEmail} readOnly style={{ opacity: 0.6, cursor: "not-allowed" }} />
-                  <small>Email is managed by CodeHands Cloud and cannot be changed here.</small>
+                  <small>Email cannot be changed here.</small>
                 </div>
 
                 <div className="form-group">
-                  <label>Change Password</label>
+                  <label>Change Password <DemoTag label="Not wired yet" /></label>
                   <div className="password-input-row">
                     <input
                       type={showNewPassword ? "text" : "password"}
@@ -295,7 +296,7 @@ export function SettingsView({
                 </div>
 
                 <div className="form-group">
-                  <label>Device Identifier</label>
+                  <label>Device Identifier <DemoTag label="Placeholder" /></label>
                   <input type="text" defaultValue="desktop-client-windows" readOnly />
                 </div>
 
@@ -304,7 +305,7 @@ export function SettingsView({
                     {saveSuccess ? "✓ Profile Saved" : "Save Profile"}
                   </button>
                   <button className="btn-danger" onClick={onLogout}>
-                    <LogOutIcon size={14} color="#fff" /> Sign Out
+                    <LogOutIcon size={14} color="#FF647C" /> Sign Out
                   </button>
                 </div>
               </>
@@ -454,7 +455,7 @@ export function SettingsView({
                   </p>
 
                   <div className="form-group" style={{ marginTop: 20 }}>
-                    <label>Device Identifier</label>
+                    <label>Device Identifier <DemoTag label="Placeholder" /></label>
                     <input type="text" defaultValue="desktop-client-windows" readOnly />
                     <small>CodeHands can also operate locally offline without cloud sync.</small>
                   </div>
@@ -466,163 +467,26 @@ export function SettingsView({
 
         {activeSection === "ai" && (
           <div className="settings-section-card">
-            <h2>AI &amp; Model Routing Configuration</h2>
-            <p className="section-sub">Set preferred models for autonomous tasks and phase routing.</p>
-
-            <div className="form-group">
-              <label>Primary Planning Model</label>
-              <select defaultValue="claude-3-5-sonnet">
-                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet (Recommended)</option>
-                <option value="gpt-4o">GPT-4o</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Primary Code Generation Model</label>
-              <select defaultValue="qwen-2-5-coder">
-                <option value="qwen-2-5-coder">Qwen 2.5 Coder 32B (Fast &amp; Precise)</option>
-                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
-                <option value="gpt-4o">GPT-4o</option>
-              </select>
-            </div>
-
-            <button className="btn-primary">Update Model Preferences</button>
-          </div>
-        )}
-
-        {activeSection === "notifications" && (
-          <div className="settings-section-card">
-            <h2>Notifications</h2>
-            <p className="section-sub">Configure when and how CodeHands notifies you.</p>
-            <div className="form-group checkbox-row">
-              <input type="checkbox" id="notif-review" defaultChecked />
-              <label htmlFor="notif-review">Notify when a task needs human review</label>
-            </div>
-            <div className="form-group checkbox-row">
-              <input type="checkbox" id="notif-fail" defaultChecked />
-              <label htmlFor="notif-fail">Notify when a task fails</label>
-            </div>
-            <div className="form-group checkbox-row">
-              <input type="checkbox" id="notif-done" />
-              <label htmlFor="notif-done">Notify when a task completes successfully</label>
-            </div>
-            <button className="btn-primary">Save Preferences</button>
-          </div>
-        )}
-
-        {activeSection === "appearance" && (
-          <div className="settings-section-card">
-            <h2>Appearance &amp; Theme</h2>
-            <p className="section-sub">Customize the visual presentation of your engineering workspace.</p>
-
-            <div className="form-group">
-              <label>Interface Theme</label>
-              <div className="theme-cards-grid">
-                {/* Dark Theme Option */}
-                <div
-                  className={`theme-card-option ${theme === "dark" ? "active" : ""}`}
-                  onClick={() => {
-                    if (theme !== "dark") onToggleTheme();
-                  }}
-                >
-                  <div className="theme-card-preview dark-preview">
-                    <div className="preview-sidebar dark">
-                      <div className="preview-bar cyan" />
-                      <div className="preview-bar" />
-                      <div className="preview-bar" />
-                    </div>
-                    <div className="preview-main">
-                      <div className="preview-header-bar">
-                        <span className="preview-dot" />
-                      </div>
-                      <div className="preview-editor-box">
-                        <div className="preview-code-line accent" />
-                        <div className="preview-code-line w60" />
-                        <div className="preview-code-line w40" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="theme-card-footer">
-                    <div>
-                      <strong>Engineering Dark</strong>
-                      <span>Low glare, high contrast</span>
-                    </div>
-                    <input type="radio" checked={theme === "dark"} readOnly />
-                  </div>
-                </div>
-
-                {/* Light Theme Option */}
-                <div
-                  className={`theme-card-option ${theme === "light" ? "active" : ""}`}
-                  onClick={() => {
-                    if (theme !== "light") onToggleTheme();
-                  }}
-                >
-                  <div className="theme-card-preview light-preview">
-                    <div className="preview-sidebar light">
-                      <div className="preview-bar cyan" />
-                      <div className="preview-bar" />
-                      <div className="preview-bar" />
-                    </div>
-                    <div className="preview-main">
-                      <div className="preview-header-bar">
-                        <span className="preview-dot" />
-                      </div>
-                      <div className="preview-editor-box">
-                        <div className="preview-code-line accent" />
-                        <div className="preview-code-line w60" />
-                        <div className="preview-code-line w40" />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="theme-card-footer">
-                    <div>
-                      <strong>Crisp Light</strong>
-                      <span>High readability for day work</span>
-                    </div>
-                    <input type="radio" checked={theme === "light"} readOnly />
-                  </div>
-                </div>
+            <h2>AI &amp; model routing <DemoTag /></h2>
+            <p className="section-sub">Preferred models.</p>
+            <DemoNote>Not saved yet. Choose the model for a task on the New task screen.</DemoNote>
+            <div className="card pad">
+              <div className="form-group">
+                <label>Planning</label>
+                <select defaultValue="claude-3-5-sonnet">
+                  <option value="claude-3-5-sonnet">Claude 3.5 Sonnet (Recommended)</option>
+                  <option value="gpt-4o">GPT-4o</option>
+                </select>
               </div>
-            </div>
-
-            <div className="form-group">
-              <label>Brand Primary Accent Color</label>
-              <div className="accent-color-picker-row">
-                <button
-                  type="button"
-                  className="accent-color-circle active"
-                  style={{ background: "#27B7F5" }}
-                  title="Logo Cyan (#27B7F5) - Recommended"
-                />
-                <button
-                  type="button"
-                  className="accent-color-circle"
-                  style={{ background: "#00C2FF" }}
-                  title="Sky Cyan (#00C2FF)"
-                />
-                <button
-                  type="button"
-                  className="accent-color-circle"
-                  style={{ background: "#20C997" }}
-                  title="Emerald (#20C997)"
-                />
-                <button
-                  type="button"
-                  className="accent-color-circle"
-                  style={{ background: "#FFB547" }}
-                  title="Amber (#FFB547)"
-                />
+              <div className="form-group">
+                <label>Writing code</label>
+                <select defaultValue="qwen-2-5-coder">
+                  <option value="qwen-2-5-coder">Qwen 2.5 Coder 32B (Fast &amp; Precise)</option>
+                  <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                  <option value="gpt-4o">GPT-4o</option>
+                </select>
               </div>
-              <small>Matches the exact cyan blue gradient from the official CodeHands logo.</small>
-            </div>
-
-            <div className="form-group">
-              <label>Workspace Density</label>
-              <select defaultValue="default">
-                <option value="compact">Compact (Higher information density)</option>
-                <option value="default">Comfortable (Default)</option>
-              </select>
+              <button className="btn">Update model preferences</button>
             </div>
           </div>
         )}
@@ -630,31 +494,18 @@ export function SettingsView({
         {activeSection === "shortcuts" && (
           <div className="settings-section-card">
             <h2>Keyboard Shortcuts</h2>
+            <p className="section-sub">These work today.</p>
             <div className="shortcuts-table">
-              <div className="shortcut-row">
-                <span>Global Command Palette</span>
-                <kbd>Ctrl + K</kbd>
-              </div>
-              <div className="shortcut-row">
-                <span>Create New Task</span>
-                <kbd>Ctrl + N</kbd>
-              </div>
-              <div className="shortcut-row">
-                <span>Open Terminal Dock</span>
-                <kbd>Ctrl + `</kbd>
-              </div>
-              <div className="shortcut-row">
-                <span>Switch to Overview</span>
-                <kbd>G then O</kbd>
-              </div>
-              <div className="shortcut-row">
-                <span>Switch to Projects</span>
-                <kbd>G then P</kbd>
-              </div>
-              <div className="shortcut-row">
-                <span>Approve Current Changes</span>
-                <kbd>Ctrl + Enter</kbd>
-              </div>
+              <div className="shortcut-row"><span>Command palette</span><kbd>Ctrl + K</kbd></div>
+              <div className="shortcut-row"><span>New task</span><kbd>Ctrl + N</kbd></div>
+              <div className="shortcut-row"><span>Hide or show the sidebar</span><kbd>Ctrl + B</kbd></div>
+            </div>
+            <div className="sec-h"><span className="row">Planned <DemoTag label="Not wired yet" /></span></div>
+            <div className="shortcuts-table">
+              <div className="shortcut-row"><span>Open terminal</span><kbd>Ctrl + `</kbd></div>
+              <div className="shortcut-row"><span>Go to Home</span><kbd>G then O</kbd></div>
+              <div className="shortcut-row"><span>Go to Projects</span><kbd>G then P</kbd></div>
+              <div className="shortcut-row"><span>Approve current changes</span><kbd>Ctrl + Enter</kbd></div>
             </div>
           </div>
         )}

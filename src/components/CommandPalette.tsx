@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { Fragment, useState, useEffect } from "react";
 import { SearchIcon } from "./Icons";
 
 interface CommandItem {
@@ -36,9 +36,8 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     },
     {
       id: "view-overview",
-      title: "Go to Dashboard Overview",
+      title: "Go to Home",
       category: "Navigation",
-      shortcut: "G O",
       symbol: "O",
       action: () => {
         onNavigate("overview");
@@ -49,7 +48,6 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
       id: "view-projects",
       title: "Go to Projects",
       category: "Navigation",
-      shortcut: "G P",
       symbol: "P",
       action: () => {
         onNavigate("projects");
@@ -58,9 +56,8 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     },
     {
       id: "view-tasks",
-      title: "Go to Task Workspace",
+      title: "Go to All tasks",
       category: "Navigation",
-      shortcut: "G T",
       symbol: "T",
       action: () => {
         onNavigate("tasks");
@@ -69,9 +66,8 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     },
     {
       id: "view-workflows",
-      title: "Open Workflow Builder",
+      title: "Open Workflows",
       category: "Views",
-      shortcut: "G W",
       symbol: "W",
       action: () => {
         onNavigate("workflows");
@@ -82,7 +78,6 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
       id: "view-review",
       title: "Open Review Queue",
       category: "Views",
-      shortcut: "G R",
       symbol: "R",
       action: () => {
         onNavigate("review");
@@ -91,9 +86,8 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     },
     {
       id: "view-models",
-      title: "Models & Routing Hub",
+      title: "Models & Routing",
       category: "Views",
-      shortcut: "G M",
       symbol: "M",
       action: () => {
         onNavigate("models");
@@ -112,7 +106,7 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     },
     {
       id: "view-analytics",
-      title: "Usage & Analytics",
+      title: "Go to Insights",
       category: "Navigation",
       symbol: "A",
       action: () => {
@@ -124,7 +118,6 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
       id: "view-settings",
       title: "Open Settings",
       category: "Settings",
-      shortcut: "Ctrl+,",
       symbol: "S",
       action: () => {
         onNavigate("settings");
@@ -147,6 +140,8 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
     cmd.title.toLowerCase().includes(query.toLowerCase()) ||
     cmd.category.toLowerCase().includes(query.toLowerCase())
   );
+
+  const groupOf = (c: CommandItem) => (c.category === "Navigation" || c.category === "Views" ? "Go to" : c.category);
 
   useEffect(() => {
     setSelectedIndex(0);
@@ -199,17 +194,18 @@ export function CommandPalette({ isOpen, onClose, onNavigate, onNewTask, toggleT
             <div className="palette-empty">No matching commands found.</div>
           ) : (
             filtered.map((item, idx) => (
+              <Fragment key={item.id}>
+                {(idx === 0 || groupOf(filtered[idx - 1]) !== groupOf(item)) && <div className="palette-group">{groupOf(item)}</div>}
               <button
-                key={item.id}
                 className={`palette-item ${idx === selectedIndex ? "active" : ""}`}
                 onClick={item.action}
                 onMouseEnter={() => setSelectedIndex(idx)}
               >
                 <span className="palette-item-icon">{item.symbol}</span>
                 <span className="palette-item-title">{item.title}</span>
-                <span className="palette-item-cat">{item.category}</span>
                 {item.shortcut && <kbd className="palette-item-shortcut">{item.shortcut}</kbd>}
               </button>
+              </Fragment>
             ))
           )}
         </div>

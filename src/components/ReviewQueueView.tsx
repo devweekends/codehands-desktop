@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { CommandKind } from "@codehands/contracts";
 import type { DesktopSession } from "./TaskDetail";
-import { ReviewIcon, BranchIcon, CheckCircleIcon } from "./Icons";
+import { BranchIcon, CheckCircleIcon } from "./Icons";
+import { DemoNote, hasRealDiff } from "./Demo";
 
 interface ReviewQueueViewProps {
   sessions: DesktopSession[];
@@ -36,20 +37,17 @@ export function ReviewQueueView({ sessions, onCommand, onOpenSession }: ReviewQu
     }
   };
 
+  const repoName = (s: DesktopSession) => s.projectName || s.repo?.split("\\").pop() || "sample-repo";
+
   return (
     <div className="review-queue-container">
-      {/* Top Banner */}
-      <div className="review-queue-header">
-        <div className="header-title-row">
-          <ReviewIcon size={20} color="#FFB547" />
-          <div className="header-text">
-            <h2>Human Review Queue</h2>
-            <p>Code changes produced by AI agents requiring developer approval before committing</p>
+      <div className="page" style={{ paddingBottom: 12 }}>
+        <div className="page-head" style={{ marginBottom: 0 }}>
+          <div>
+            <h1>Review</h1>
+            <p className="sub">Changes waiting for your decision. Nothing is committed until you approve.</p>
           </div>
-        </div>
-        <div className="header-meta-pill">
-          <span className="count-num">{realAwaiting.length}</span>
-          <span>Tasks Awaiting Approval</span>
+          <span className="pill awaiting_approval">{realAwaiting.length} waiting</span>
         </div>
       </div>
 
@@ -61,141 +59,74 @@ export function ReviewQueueView({ sessions, onCommand, onOpenSession }: ReviewQu
       )}
 
       {realAwaiting.length === 0 ? (
-        <div className="review-empty-state-card">
-          <div className="empty-state-icon">
-            <CheckCircleIcon size={36} color="#20C997" />
-          </div>
-          <h3>All Caught Up! No Tasks Awaiting Review</h3>
-          <p>
-            When an autonomous agent completes implementation and test execution, changes will
-            appear here with diff inspection, test results, and one-click commit authorization.
-          </p>
-          {sessions.length > 0 && (
-            <div className="empty-state-hint">
-              <span>{sessions.length} total tasks tracked in this workspace.</span>
-            </div>
-          )}
+        <div className="card empty review-empty-state-card" style={{ margin: "12px 36px" }}>
+          <CheckCircleIcon size={30} color="#20C997" />
+          <h3>Nothing to review</h3>
+          <p>When a task finishes, its change appears here for you to approve or reject.</p>
+          {sessions.length > 0 && <p className="sm mt8">{sessions.length} tasks tracked in this workspace.</p>}
         </div>
       ) : (
-        /* Review Layout: Left List + Right Review Detail */
-        <div className="review-queue-body">
-          {/* Left List */}
-          <div className="review-items-list">
-            <div className="review-list-header">
-              <span className="review-list-title">PENDING REVIEWS</span>
-              <span className="review-list-badge">{realAwaiting.length}</span>
-            </div>
-            {realAwaiting.map((s) => {
-              const isSelected = s.id === (selectedSession?.id || activeReviewId);
-              return (
+        <div className="split-view" style={{ borderTop: "1px solid var(--line)" }}>
+          <div className="pane-list review-items-list">
+            <div className="pane-list-body">
+              {realAwaiting.map((s) => (
                 <div
                   key={s.id}
-                  className={`review-card-item ${isSelected ? "active" : ""}`}
+                  className={`review-card-item ${s.id === (selectedSession?.id || activeReviewId) ? "active" : ""}`}
                   onClick={() => setActiveReviewId(s.id)}
                 >
-                  <div className="card-top">
-                    <span className="status-indicator-pill awaiting">Awaiting Approval</span>
-                    <span className="time-ago">{new Date(s.createdAt).toLocaleTimeString()}</span>
-                  </div>
-
-                  <strong className="review-title" title={s.title || s.prompt}>
+                  <strong className="ell" style={{ display: "block" }} title={s.title || s.prompt}>
                     {s.title || s.prompt || `Task #${s.id.slice(0, 8)}`}
                   </strong>
-
-                  <div className="review-meta-row">
-                    <span className="repo-tag">{s.projectName || s.repo?.split("\\").pop() || "sample-repo"}</span>
-                    <span className="branch-tag">
-                      <BranchIcon size={12} /> {s.branch || "main"}
-                    </span>
-                  </div>
-
-                  <div className="stats-badges-row">
-                    <span className="stat-pill files">{s.agent || "claude-code"}</span>
-                    <span className="stat-pill tests">Model: {s.model || "sonnet"}</span>
-                    <span className="stat-pill cost">${(s.costUsd || 0).toFixed(2)}</span>
-                  </div>
+                  <div className="mut sm ell">{repoName(s)} · {new Date(s.createdAt).toLocaleTimeString()}</div>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
 
-          {/* Right Detail Pane */}
-          <div className="review-detail-pane">
-            {selectedSession && (
-              <div className="review-detail-card">
-                <div className="detail-top-bar">
-                  <div className="detail-title-col">
-                    <div className="eyebrow-tag">HUMAN DECISION REQUIRED</div>
-                    <h3>{selectedSession.title || selectedSession.prompt}</h3>
-                    <div className="meta-chain">
-                      <span className="meta-badge">📁 {selectedSession.projectName || selectedSession.repo?.split("\\").pop() || "sample-repo"}</span>
-                      <span className="meta-badge">⎇ {selectedSession.branch || "main"}</span>
-                      <span className="meta-badge">🤖 {selectedSession.agent}</span>
-                      <span className="meta-badge">⚡ {selectedSession.model}</span>
-                      <span className="meta-badge">💰 ${(selectedSession.costUsd || 0).toFixed(2)}</span>
-                    </div>
+          <div className="pane-main">
+            <div className="pane-scroll">
+              {selectedSession && (
+                <div className="col">
+                  <h2>{selectedSession.title || selectedSession.prompt}</h2>
+                  <div className="row wrap mut sm mt8">
+                    <span>{repoName(selectedSession)}</span>
+                    <span className="row" style={{ gap: 4 }}><BranchIcon size={12} />{selectedSession.branch || "main"}</span>
                   </div>
 
-                  <div className="decision-actions">
-                    <button
-                      className="btn-reject"
-                      onClick={() => handleReject(selectedSession.id)}
-                    >
-                      Reject Changes
+                  <div className="mt16">
+                    {!hasRealDiff(selectedSession) && (
+                      <DemoNote danger label="No real diff">
+                        The daemon sent no diff for this task, so the Changes tab shows sample code. Check the real branch before approving.
+                      </DemoNote>
+                    )}
+                  </div>
+
+                  <div className="fact-grid">
+                    <div className="card"><span className="mut sm">Agent</span><b>{selectedSession.agent}</b></div>
+                    <div className="card"><span className="mut sm">Model</span><b>{selectedSession.model}</b></div>
+                    <div className="card"><span className="mut sm">Cost</span><b>${(selectedSession.costUsd || 0).toFixed(2)}</b></div>
+                    <div className="card"><span className="mut sm">Folder</span><b className="sm mono">{selectedSession.repo}</b></div>
+                  </div>
+
+                  <div className="sec-h"><span>What you asked for</span></div>
+                  <div className="card pad">{selectedSession.prompt}</div>
+
+                  <div className="row wrap mt16">
+                    <button className="btn btn-link-inspect" onClick={() => onOpenSession(selectedSession.id)}>
+                      See the changes &rarr;
                     </button>
-                    <button
-                      className="btn-approve"
-                      onClick={() => handleApprove(selectedSession.id)}
-                    >
-                      ✓ Approve & Commit
+                    <span className="grow" />
+                    <button className="btn danger btn-reject" onClick={() => handleReject(selectedSession.id)}>
+                      Reject
+                    </button>
+                    <button className="btn go btn-approve" onClick={() => handleApprove(selectedSession.id)}>
+                      Approve &amp; commit
                     </button>
                   </div>
                 </div>
-
-                {/* Execution Summary */}
-                <div className="review-summary-section">
-                  <h4>Execution Summary</h4>
-                  <div className="summary-metrics-grid">
-                    <div className="metric-box">
-                      <span className="metric-label">STATUS</span>
-                      <strong className="metric-val" style={{ color: "var(--warning)" }}>
-                        Awaiting Approval
-                      </strong>
-                      <span className="metric-sub">Tests passing, staged</span>
-                    </div>
-
-                    <div className="metric-box">
-                      <span className="metric-label">TARGET REPO</span>
-                      <strong className="metric-val">
-                        {selectedSession.projectName || selectedSession.repo?.split("\\").pop()}
-                      </strong>
-                      <span className="metric-sub">{selectedSession.repo}</span>
-                    </div>
-
-                    <div className="metric-box">
-                      <span className="metric-label">AGENT RUNNER</span>
-                      <strong className="metric-val">{selectedSession.agent}</strong>
-                      <span className="metric-sub">{selectedSession.model}</span>
-                    </div>
-
-                    <div className="metric-box">
-                      <span className="metric-label">TASK SPECIFICATION</span>
-                      <p className="spec-text">{selectedSession.prompt}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="review-footer-action">
-                  <span>Want to inspect full diff and comment before approving?</span>
-                  <button
-                    className="btn-link-inspect"
-                    onClick={() => onOpenSession(selectedSession.id)}
-                  >
-                    Open Workspace Diff Inspector &rarr;
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { TerminalIcon, ChevronDownIcon } from "./Icons";
+import { DemoTag } from "./Demo";
 
 interface TerminalDockProps {
   connected: boolean;
@@ -82,13 +83,14 @@ export function TerminalDock({ connected, projectsCount = 1, sessionsCount = 0 }
       <div className="terminal-dock-bar" onClick={() => setIsOpen(!isOpen)}>
         <div className="dock-left">
           <TerminalIcon size={14} color="#27B7F5" />
-          <span className="dock-title">
-            Terminal {isOpen ? "— Click to minimize" : "— Click to open"}
-          </span>
+          <span className="dock-title">Terminal</span>
           <span className={`dock-status-dot ${connected ? "online" : "offline"}`} />
+          <DemoTag label="Demo replies" />
         </div>
         <div className="dock-right">
-          <span className="dock-shortcut">Ctrl+`</span>
+          <span className="dock-hint">Commands <kbd>Ctrl K</kbd></span>
+          <span className="dock-hint">New task <kbd>Ctrl N</kbd></span>
+          <span className="dock-hint">Sidebar <kbd>Ctrl B</kbd></span>
           <span className={`dock-arrow ${isOpen ? "open" : ""}`}>
             <ChevronDownIcon size={14} />
           </span>

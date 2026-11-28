@@ -1,18 +1,16 @@
 import { useState } from "react";
-import type { DesktopSession } from "./TaskDetail";
+import { DemoNote, DemoTag, hasRealDiff } from "./Demo";
+import { Track } from "./Track";
+import { parseDiffToFiles } from "../utils/dynamicDiff";
+import type { DesktopSession, SessionEvent } from "./TaskDetail";
 import type { DesktopProject } from "./WorkspacePages";
 import {
-  SearchIcon,
   PlusIcon,
   GridIcon,
   ListIcon,
   StarIcon,
-  BranchIcon,
-  ClockIcon,
   ArrowRightIcon,
-  CheckCircleIcon,
-  BoxIcon,
-  ZapIcon,
+  EyeIcon,
 } from "./Icons";
 
 interface DashboardViewProps {
@@ -22,6 +20,10 @@ interface DashboardViewProps {
   onOpenProject: (projectId: string) => void;
   onNewTask: (defaultRepo?: string) => void;
   onNewProject: () => void;
+  userName?: string;
+  events?: Record<string, SessionEvent[]>;
+  onOpenReview?: () => void;
+  onAllTasks?: () => void;
 }
 
 interface ProjectCardData {
@@ -135,6 +137,10 @@ export function DashboardView({
   onOpenProject,
   onNewTask,
   onNewProject,
+  userName,
+  events = {},
+  onOpenReview,
+  onAllTasks,
 }: DashboardViewProps) {
   const [filter, setFilter] = useState<"all" | "active" | "archived">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -197,335 +203,192 @@ export function DashboardView({
     return matchesSearch;
   });
 
-  const totalProjects = projectCards.length;
-  const pendingTodos = projectCards.reduce((acc, curr) => acc + curr.todos, 0);
-  const gsdProjectsCount = projectCards.filter((p) => p.tag === "GSD").length;
+  const usingDemoProjects = dedupedProjects.length === 0;
+  const waiting = sessions.filter((s) => s.status === "awaiting_approval");
+  const running = sessions.filter((s) => s.status === "running" || s.status === "queued");
+  const finished = sessions.filter((s) => !waiting.includes(s) && !running.includes(s));
+  const spent = sessions.reduce((total, s) => total + (s.costUsd || 0), 0);
+  const titleOf = (s: DesktopSession) => s.title || s.prompt || `Task ${s.id.slice(0, 8)}`;
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const firstName = userName && !userName.includes("(") ? userName.split(" ")[0] : "";
+  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const headline = [
+    waiting.length ? `${count(waiting.length, "change is", "changes are")} waiting for you.` : "Nothing is waiting for you.",
+    running.length ? `${count(running.length, "task is", "tasks are")} running or queued.` : "",
+  ].join(" ");
+
+  const diffFacts = (s: DesktopSession) => {
+    if (!hasRealDiff(s)) return <span className="fact warn">No real diff saved for this task</span>;
+    const files = parseDiffToFiles(s.diff as string, s.id).filter((f) => f.diffText.includes("@@"));
+    const lines = (s.diff as string).split("\n");
+    const added = lines.filter((l) => l.startsWith("+") && !l.startsWith("+++")).length;
+    const removed = lines.filter((l) => l.startsWith("-") && !l.startsWith("---")).length;
+    return <span className="fact">{count(files.length, "file", "files")}, +{added} −{removed}</span>;
+  };
 
   return (
-    <div className="dashboard-view-container">
-      {/* Top Banner / Header matching Screenshot 1 */}
-      <div className="dashboard-header-bar">
-        <div className="dashboard-title-group">
-          <div className="dashboard-title-row">
-            <BoxIcon size={20} color="#27B7F5" />
-            <h1>All Your Projects</h1>
+    <div className="page dashboard-view-container">
+      <div className="col">
+        <div className="page-head">
+          <div>
+            <h1>{greeting}{firstName ? `, ${firstName}` : ""}</h1>
+            <p className="sub">{headline}</p>
           </div>
-          <p className="dashboard-sub">Your engineering workspaces and AI orchestration at a glance</p>
-        </div>
-        <div className="dashboard-header-actions">
-          <button className="add-project-btn" onClick={onNewProject}>
-            <PlusIcon size={14} color="#ffffff" />
-            <span>Add Project</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Stats Summary Pill Bar matching Screenshot 1 */}
-      <div className="summary-pill-bar">
-        <div className="summary-pill-item">
-          <BoxIcon size={14} color="#666C7E" />
-          <span className="pill-strong">{totalProjects}</span>
-          <span className="pill-label">projects</span>
-        </div>
-        <span className="pill-divider">|</span>
-        <div className="summary-pill-item">
-          <CheckCircleIcon size={14} color="#27B7F5" />
-          <span className="pill-strong violet">{pendingTodos}</span>
-          <span className="pill-label">pending tasks</span>
-        </div>
-        <span className="pill-divider">|</span>
-        <div className="summary-pill-item">
-          <ZapIcon size={14} color="#27B7F5" />
-          <span className="pill-strong blue">{gsdProjectsCount}</span>
-          <span className="pill-label">orchestrated projects</span>
-        </div>
-      </div>
-
-      {/* Filter and View Mode Toolbar matching Screenshot 1 */}
-      <div className="dashboard-filter-toolbar">
-        <div className="filter-search-box">
-          <SearchIcon size={14} color="#666C7E" />
-          <input
-            type="text"
-            placeholder="Search projects..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+          <div className="row">
+            {sessions.length > 0 && (
+              <div className="head-stat">
+                <span className="mut sm">Spent on {count(sessions.length, "task", "tasks")}</span>
+                <b>${spent.toFixed(2)}</b>
+              </div>
+            )}
+            <button className="btn ghost" onClick={onOpenReview} data-nav="Review Queue">Review queue</button>
+          </div>
         </div>
 
-        <div className="filter-segmented-control">
-          <button
-            className={`seg-btn ${filter === "all" ? "active" : ""}`}
-            onClick={() => setFilter("all")}
-          >
-            All
-          </button>
-          <button
-            className={`seg-btn ${filter === "active" ? "active" : ""}`}
-            onClick={() => setFilter("active")}
-          >
-            Active
-          </button>
-          <button
-            className={`seg-btn ${filter === "archived" ? "active" : ""}`}
-            onClick={() => setFilter("archived")}
-          >
-            Archived
-          </button>
-        </div>
+        {sessions.length === 0 && (
+          <div className="home-start">
+            <h2>What should we work on first?</h2>
+            <p className="sub">Describe it like you would to a teammate.</p>
+            <button className="home-start-box" onClick={() => onNewTask()}>
+              <span>For example: “Add input validation to the signup form and a test for an empty email”</span>
+              <span className="btn primary">Start first task <ArrowRightIcon size={13} color="#ffffff" /></span>
+            </button>
+          </div>
+        )}
 
-        <span className="filter-count-badge">{filteredProjects.length} projects</span>
-
-        <div className="toolbar-spacer" />
-
-        <div className="view-mode-toggle">
-          <button
-            className={`mode-btn ${viewMode === "grid" ? "active" : ""}`}
-            onClick={() => setViewMode("grid")}
-            title="Grid view"
-          >
-            <GridIcon size={14} />
-          </button>
-          <button
-            className={`mode-btn ${viewMode === "list" ? "active" : ""}`}
-            onClick={() => setViewMode("list")}
-            title="List view"
-          >
-            <ListIcon size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Projects Grid / List matching Screenshot 1 */}
-      {viewMode === "grid" ? (
-        <div className="projects-card-grid">
-          {filteredProjects.map((proj) => {
-            const progressPercent =
-              proj.totalTasks > 0 ? Math.round((proj.completedTasks / proj.totalTasks) * 100) : 0;
-
-            return (
-              <div
-                key={proj.id}
-                className="gsd-project-card"
-                onClick={() => onOpenProject(proj.id)}
-              >
-                {/* Card Header */}
-                <div className="card-header-row">
-                  <div className="card-title-left">
-                    <button
-                      className={`star-toggle-btn ${(starredIds[proj.id] ?? proj.starred) ? "starred" : ""}`}
-                      onClick={(e) => toggleStar(proj.id, e)}
-                      title="Star project"
-                    >
-                      <StarIcon
-                        size={15}
-                        filled={starredIds[proj.id] ?? proj.starred}
-                        color={(starredIds[proj.id] ?? proj.starred) ? "#FFB547" : "#666C7E"}
-                      />
-                    </button>
-                    <h3 className="project-title">{proj.name}</h3>
-                  </div>
-                  <span className={`project-tag-pill ${proj.tag.toLowerCase()}`}>
-                    {proj.tag}
-                  </span>
-                </div>
-
-                {/* Card Description */}
-                <p className="project-desc">{proj.description}</p>
-
-                {/* Badge Row (phases, todos, blockers) */}
-                <div className="card-badges-row">
-                  {proj.phases > 0 && (
-                    <span className="badge-pill phases">
-                      {proj.phases} phases
-                    </span>
-                  )}
-                  {proj.blockers && proj.blockers > 0 && (
-                    <span className="badge-pill blockers">
-                      {proj.blockers} blockers
-                    </span>
-                  )}
-                  {proj.todos > 0 && (
-                    <span className="badge-pill todos">
-                      {proj.todos} todos
-                    </span>
-                  )}
-                  {proj.phases === 0 && (
-                    <span className="badge-pill bare">
-                      No roadmap
-                    </span>
-                  )}
-                </div>
-
-                {/* Progress Bar with Ratio */}
-                {proj.totalTasks > 0 ? (
-                  <div className="card-progress-section">
-                    <div className="progress-track">
-                      <div
-                        className="progress-fill"
-                        style={{ width: `${progressPercent}%` }}
-                      />
+        {waiting.length > 0 && (
+          <>
+            <div className="sec-h"><span>Needs you</span></div>
+            {waiting.map((s) => (
+              <div key={s.id} className="card attention need-card" onClick={() => onOpenSession(s.id)}>
+                <div className="need-body">
+                  <span className="icon-tile warn"><EyeIcon size={16} /></span>
+                  <div className="grow">
+                    <div className="row">
+                      <h3 className="grow">{titleOf(s)}</h3>
+                      <span className="pill plain awaiting_approval">Ready for review</span>
                     </div>
-                    <span className="progress-fraction">
-                      {proj.completedTasks}/{proj.totalTasks}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="card-progress-placeholder" />
-                )}
-
-                {/* Card Footer */}
-                <div className="card-footer-row">
-                  <div className="branch-meta">
-                    <BranchIcon size={12} color="#9FA4B4" />
-                    <span className="branch-name">{proj.branch}</span>
-                  </div>
-                  <div className="time-meta">
-                    <ClockIcon size={12} color="#666C7E" />
-                    <span>{proj.updatedAt}</span>
+                    <div className="mut sm ell">{s.projectName || s.repo} · {s.agent} · {s.model} · ${(s.costUsd || 0).toFixed(2)}</div>
+                    <div className="row wrap facts">{diffFacts(s)}</div>
                   </div>
                 </div>
+                <div className="need-foot">
+                  <span className="mut sm grow">Nothing is committed until you approve</span>
+                  <button className="btn primary sm">Review changes <ArrowRightIcon size={12} color="#ffffff" /></button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {running.length > 0 && (
+          <>
+            <div className="sec-h"><span>Running now</span></div>
+            {running.map((s) => (
+              <div key={s.id} className="card pad running-card" onClick={() => onOpenSession(s.id)}>
+                <div className="row">
+                  <span className={`dot ${s.status}`} />
+                  <h3 className="grow ell">{titleOf(s)}</h3>
+                  <span className="mut sm">{s.status} · ${(s.costUsd || 0).toFixed(2)}</span>
+                </div>
+                <div className="mt12"><Track session={s} events={events[s.id]} /></div>
+              </div>
+            ))}
+          </>
+        )}
+
+        {sessions.length > 0 && (
+          <>
+            <div className="sec-h">
+              <span>Recent</span>
+              <button className="btn-link" onClick={onAllTasks}>All tasks</button>
+            </div>
+            {finished.length === 0 ? (
+              <p className="mut sm">No finished tasks yet.</p>
+            ) : (
+              <div className="card list">
+                {finished.slice(0, 4).map((s) => (
+                  <div key={s.id} className="click mini-session-row" onClick={() => onOpenSession(s.id)}>
+                    <span className={`dot ${s.status}`} />
+                    <span className="grow ell">{titleOf(s)}</span>
+                    <span className="mut sm ell">{s.projectName}</span>
+                    <span className={`pill ${s.status}`}>{s.status.replace(/_/g, " ")}</span>
+                    <span className="mono mut">${(s.costUsd || 0).toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="sec-h projects-head">
+          <span className="row">Projects {usingDemoProjects && <DemoTag />}</span>
+          <div className="row wrap">
+            <input type="text" style={{ width: 180 }} placeholder="Search projects..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            <div className="seg">
+              {(["all", "active", "archived"] as const).map((f) => (
+                <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>
+                  {f[0].toUpperCase() + f.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="seg">
+              <button className={viewMode === "grid" ? "active" : ""} onClick={() => setViewMode("grid")} title="Grid view"><GridIcon size={13} /></button>
+              <button className={viewMode === "list" ? "active" : ""} onClick={() => setViewMode("list")} title="List view"><ListIcon size={13} /></button>
+            </div>
+            <button className="btn sm add-project-btn" onClick={onNewProject}><PlusIcon size={12} /> Add project</button>
+          </div>
+        </div>
+
+        {usingDemoProjects && <DemoNote>These are sample projects. Yours appear here after you run your first task.</DemoNote>}
+
+        <div className={viewMode === "grid" ? "grid3" : "card list"}>
+          {filteredProjects.map((proj) => {
+            const starred = starredIds[proj.id] ?? proj.starred;
+            const percent = proj.totalTasks > 0 ? Math.round((proj.completedTasks / proj.totalTasks) * 100) : 0;
+            const star = (
+              <button className="icon-btn" onClick={(e) => toggleStar(proj.id, e)} title={starred ? "Remove star" : "Star project"}>
+                <StarIcon size={14} color={starred ? "#FFB547" : "currentColor"} />
+              </button>
+            );
+            const run = (
+              <button
+                className="btn sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onNewTask(proj.repoPath);
+                }}
+              >
+                Run task
+              </button>
+            );
+            return viewMode === "grid" ? (
+              <div key={proj.id} className="card pad project-card" onClick={() => onOpenProject(proj.id)}>
+                <div className="row">
+                  <h3 className="grow ell">{proj.name}</h3>
+                  {star}
+                </div>
+                <div className="mono mut ell" title={proj.repoPath}>{proj.repoPath}</div>
+                {usingDemoProjects && <p className="sub sm mt8">{proj.description}</p>}
+                <div className="bar mt12"><i style={{ width: `${percent}%` }} /></div>
+                <div className="row mt8">
+                  <span className="mut sm grow">{proj.completedTasks} of {proj.totalTasks} approved</span>
+                  {run}
+                </div>
+              </div>
+            ) : (
+              <div key={proj.id} className="click" onClick={() => onOpenProject(proj.id)}>
+                {star}
+                <div className="grow">
+                  <div className="ell">{proj.name}</div>
+                  <div className="mono mut ell">{proj.repoPath}</div>
+                </div>
+                <span className="mut sm">{proj.completedTasks}/{proj.totalTasks}</span>
+                {run}
               </div>
             );
           })}
-        </div>
-      ) : (
-        <div className="projects-table-view">
-          <div className="table-header-row">
-            <span className="th-name">Project</span>
-            <span className="th-tag">Type</span>
-            <span className="th-progress">Progress</span>
-            <span className="th-branch">Branch</span>
-            <span className="th-updated">Updated</span>
-            <span className="th-actions">Action</span>
-          </div>
-          {filteredProjects.map((proj) => (
-            <div
-              key={proj.id}
-              className="table-item-row"
-              onClick={() => onOpenProject(proj.id)}
-            >
-              <div className="td-name">
-                <button
-                  className={`star-toggle-btn ${(starredIds[proj.id] ?? proj.starred) ? "starred" : ""}`}
-                  onClick={(e) => toggleStar(proj.id, e)}
-                >
-                  <StarIcon
-                    size={14}
-                    filled={starredIds[proj.id] ?? proj.starred}
-                    color={(starredIds[proj.id] ?? proj.starred) ? "#FFB547" : "#666C7E"}
-                  />
-                </button>
-                <strong>{proj.name}</strong>
-              </div>
-              <div className="td-tag">
-                <span className={`project-tag-pill ${proj.tag.toLowerCase()}`}>{proj.tag}</span>
-              </div>
-              <div className="td-progress">
-                <div className="mini-progress-bar">
-                  <div
-                    className="mini-progress-fill"
-                    style={{
-                      width: `${proj.totalTasks > 0 ? Math.round((proj.completedTasks / proj.totalTasks) * 100) : 0}%`,
-                    }}
-                  />
-                </div>
-                <span>{proj.completedTasks}/{proj.totalTasks}</span>
-              </div>
-              <div className="td-branch">
-                <span>{proj.branch}</span>
-              </div>
-              <div className="td-updated">
-                <span>{proj.updatedAt}</span>
-              </div>
-              <div className="td-actions">
-                <button
-                  className="btn-table-action"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onNewTask(proj.repoPath);
-                  }}
-                >
-                  Run Task
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Active Executions & Recent Activity Section */}
-      <div className="dashboard-bottom-section">
-        <div className="bottom-card">
-          <div className="bottom-card-head">
-            <h3>Recent Executions</h3>
-            <span className="live-pill"><i className="live-dot" /> Live Updates</span>
-          </div>
-          {sessions.length === 0 ? (
-            <div className="mini-empty-state">
-              <p>No recent tasks run yet. Start a task to see orchestrated runs here.</p>
-              <button className="btn-secondary" onClick={() => onNewTask()}>
-                Start First Task
-              </button>
-            </div>
-          ) : (
-            <div className="mini-sessions-list">
-              {sessions.slice(0, 4).map((s) => (
-                <div
-                  key={s.id}
-                  className="mini-session-row"
-                  onClick={() => onOpenSession(s.id)}
-                >
-                  <span className={`status-dot-badge status-${s.status}`} />
-                  <div className="session-info">
-                    <strong>{s.title || s.prompt || `Task ${s.id.slice(0, 8)}`}</strong>
-                    <small>{s.agent} · {s.model}</small>
-                  </div>
-                  <span className="session-cost">${(s.costUsd || 0).toFixed(2)}</span>
-                  <ArrowRightIcon size={12} color="#666C7E" />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="bottom-card">
-          <div className="bottom-card-head">
-            <h3>AI Model Orchestration</h3>
-            <span className="meta-info">Current Routing</span>
-          </div>
-          <div className="routing-preview-list">
-            <div className="routing-preview-row">
-              <span className="phase-badge analyze">Analyze</span>
-              <ArrowRightIcon size={12} color="#666C7E" />
-              <span className="model-chip">Claude 3.5 Sonnet</span>
-              <span className="provider-tag">Anthropic</span>
-            </div>
-            <div className="routing-preview-row">
-              <span className="phase-badge plan">Plan</span>
-              <ArrowRightIcon size={12} color="#666C7E" />
-              <span className="model-chip">Claude 3.5 Sonnet</span>
-              <span className="provider-tag">Anthropic</span>
-            </div>
-            <div className="routing-preview-row">
-              <span className="phase-badge implement">Implement</span>
-              <ArrowRightIcon size={12} color="#666C7E" />
-              <span className="model-chip">Qwen 2.5 Coder / GPT-4o</span>
-              <span className="provider-tag">Fast & Precise</span>
-            </div>
-            <div className="routing-preview-row">
-              <span className="phase-badge test">Test</span>
-              <ArrowRightIcon size={12} color="#666C7E" />
-              <span className="model-chip">GPT-4o Mini</span>
-              <span className="provider-tag">OpenAI</span>
-            </div>
-            <div className="routing-preview-row">
-              <span className="phase-badge review">Review</span>
-              <ArrowRightIcon size={12} color="#666C7E" />
-              <span className="model-chip">Claude 3.5 Sonnet</span>
-              <span className="provider-tag">Anthropic</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>

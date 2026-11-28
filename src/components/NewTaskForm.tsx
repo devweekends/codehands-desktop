@@ -1,10 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AgentKind } from "@codehands/contracts";
-import { FolderIcon, CpuIcon, WorkflowIcon, ArrowRightIcon, AlertTriangleIcon } from "./Icons";
+import { FolderIcon, ArrowRightIcon, AlertTriangleIcon } from "./Icons";
+
+/** What "Try again" carries over from a failed task. */
+export interface TaskDraft {
+  repo: string;
+  prompt: string;
+  agent: string;
+  model: string;
+}
 
 interface NewTaskFormProps {
   connected: boolean;
   initialRepo?: string;
+  draft?: TaskDraft | null;
+  /** Called once the form has taken the draft, so the next new task starts empty. */
+  onDraftUsed?: () => void;
   onStart: (taskData: {
     repo: string;
     prompt: string;
@@ -35,11 +46,29 @@ const DEFAULT_PHASE_MODELS = {
   review: "claude-3-5-sonnet",
 };
 
-export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTaskFormProps) {
-  const [repo, setRepo] = useState(initialRepo || "D:\\dev\\sample-repo");
-  const [prompt, setPrompt] = useState("");
-  const [agent, setAgent] = useState<AgentKind>("codehands");
-  const [model, setModel] = useState("claude-3-5-sonnet");
+export function NewTaskForm({ connected, initialRepo, draft, onDraftUsed, onStart, onCancel }: NewTaskFormProps) {
+  // The daemon only runs Claude Code and Codex. Retrying with any other agent would just fail again.
+  const [retry] = useState(() => {
+    if (!draft) return null;
+    const retryAgent: AgentKind = draft.agent === "codex" ? "codex" : "claude-code";
+    const models = AVAILABLE_MODELS[retryAgent];
+    return {
+      repo: draft.repo,
+      prompt: draft.prompt,
+      agent: retryAgent,
+      model: retryAgent === draft.agent && models.includes(draft.model) ? draft.model : models[0],
+      switchedFrom: retryAgent === draft.agent ? null : draft.agent,
+    };
+  });
+  useEffect(() => {
+    if (draft) onDraftUsed?.();
+    // runs once: the draft is already copied into the form
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [repo, setRepo] = useState(retry?.repo || initialRepo || "D:\\dev\\sample-repo");
+  const [prompt, setPrompt] = useState(retry?.prompt ?? "");
+  const [agent, setAgent] = useState<AgentKind>(retry?.agent ?? "codehands");
+  const [model, setModel] = useState(retry?.model ?? "claude-3-5-sonnet");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [phaseModels, setPhaseModels] = useState(DEFAULT_PHASE_MODELS);
   const [error, setError] = useState<string | null>(null);
@@ -86,13 +115,20 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
         {/* Top Header */}
         <div className="new-task-header">
           <button type="button" className="btn-back-link" onClick={onCancel}>
-            ← Back to workspace
+            ← Back to Home
           </button>
           <div className="header-title-block">
-            <h1>Create New Task</h1>
-            <p>Describe your engineering task. CodeHands will analyze, plan, and stage changes in your local workspace.</p>
+            <h1>What should we build or fix?</h1>
+            <p className="sub">Describe it like you would to a teammate. You approve the change before it is committed.</p>
           </div>
         </div>
+
+        {retry && (
+          <div className="retry-note">
+            Filled in from your failed task. Check it, then click Start task. This creates a new task; the failed one stays in your history.
+            {retry.switchedFrom && ` The agent was changed to Claude Code, because the daemon cannot run "${retry.switchedFrom}".`}
+          </div>
+        )}
 
         {/* Notice alert */}
         {!connected && (
@@ -113,113 +149,96 @@ export function NewTaskForm({ connected, initialRepo, onStart, onCancel }: NewTa
 
         {/* Main Form */}
         <form className="new-task-form" onSubmit={handleSubmit}>
-          {/* Prompt Specification */}
           <div className="composer-card">
-            <div className="composer-card-header">
-              <label htmlFor="task-prompt">Task Specification & Prompt</label>
-              <span className="helper-tag">Markdown & context supported</span>
-            </div>
             <textarea
               id="task-prompt"
+              aria-label="Task description"
               className="prompt-textarea"
               rows={5}
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="Describe what you want the autonomous agent to build or fix...&#10;&#10;e.g. Add JWT authentication middleware to the API endpoints and write unit tests covering token refresh and expiration."
+              onKeyDown={(e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") e.currentTarget.form?.requestSubmit();
+              }}
+              placeholder="For example: add input validation to the signup form and a test for an empty email"
               required
               autoFocus
             />
 
-            {/* Target Repository Path */}
-            <div className="repo-path-row">
-              <div className="repo-input-wrap">
-                <span className="repo-icon"><FolderIcon size={15} color="#9FA4B4" /></span>
+            <div className="composer-chips">
+              <div className="chip repo-input-wrap" title="Local git folder">
+                <FolderIcon size={13} />
                 <input
                   type="text"
                   value={repo}
                   onChange={(e) => setRepo(e.target.value)}
-                  placeholder="Target Local Repository Path (e.g. D:\dev\my-app)"
+                  placeholder="D:\dev\my-app"
+                  aria-label="Local git folder"
                   required
                 />
               </div>
-              <span className="repo-badge">Local Git Directory</span>
+              <div className="chip config-card" title="Agent">
+                <select value={agent} onChange={(e) => handleAgentChange(e.target.value as AgentKind)} aria-label="Agent">
+                  <option value="codehands">CodeHands Native Orchestrator (Multi-Phase)</option>
+                  <option value="claude-code">Claude Code CLI</option>
+                  <option value="codex">Codex CLI</option>
+                </select>
+              </div>
+              <div className="chip config-card" title="Model">
+                <select value={model} onChange={(e) => setModel(e.target.value)} aria-label="Model">
+                  {(AVAILABLE_MODELS[agent] || []).map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <button type="button" className={`chip accordion-toggle-btn ${showAdvanced ? "on" : ""}`} onClick={() => setShowAdvanced(!showAdvanced)}>
+                Models per step: {showAdvanced ? "on" : "off"}
+              </button>
+              <span className="grow" />
+              <button type="submit" className="btn primary btn-submit-task" disabled={!prompt.trim() || !repo.trim()}>
+                <span>Start task</span>
+                <ArrowRightIcon size={14} color="#ffffff" />
+                <kbd>Ctrl ↵</kbd>
+              </button>
             </div>
           </div>
 
-          {/* Configuration Grid: Agent & Model */}
-          <div className="config-grid-cards">
-            <div className="config-card">
-              <div className="config-card-header">
-                <WorkflowIcon size={16} color="#27B7F5" />
-                <label>Autonomous Agent Engine</label>
-              </div>
-              <select value={agent} onChange={(e) => handleAgentChange(e.target.value as AgentKind)}>
-                <option value="codehands">CodeHands Native Orchestrator (Multi-Phase)</option>
-                <option value="claude-code">Claude Code CLI</option>
-                <option value="codex">Codex CLI</option>
-              </select>
-              <span className="config-note">Multi-phase orchestration with automatic retry and validation.</span>
+          {agent !== "claude-code" && (
+            <p className="config-note warn">
+              The current daemon only runs Claude Code and Codex{agent === "codehands" ? ", so this agent will fail. Pick Claude Code." : "."}
+            </p>
+          )}
+
+          {showAdvanced && (
+            <div className="card mt12 phase-routing-grid">
+              <div className="phase-head">Model for each step</div>
+              {(
+                [
+                  ["analyze", "Understand", "Reads the code"],
+                  ["plan", "Plan", "Decides what to change"],
+                  ["implement", "Build", "Writes the change"],
+                  ["test", "Test", "Runs your tests"],
+                  ["review", "Review", "A second look before you"],
+                ] as const
+              ).map(([phase, label, why]) => (
+                <div key={phase} className="phase-config-item">
+                  <span className="phase-item-label">{label}</span>
+                  <span className="mut sm grow">{why}</span>
+                  <select value={phaseModels[phase]} onChange={(e) => setPhaseModels({ ...phaseModels, [phase]: e.target.value })} aria-label={`${label} model`}>
+                    <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+                    <option value="qwen-2.5-coder">Qwen 2.5 Coder</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                    <option value="gpt-4o-mini">GPT-4o Mini</option>
+                    <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
+                  </select>
+                </div>
+              ))}
             </div>
+          )}
 
-            <div className="config-card">
-              <div className="config-card-header">
-                <CpuIcon size={16} color="#27B7F5" />
-                <label>Primary AI Model</label>
-              </div>
-              <select value={model} onChange={(e) => setModel(e.target.value)}>
-                {(AVAILABLE_MODELS[agent] || []).map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
-              <span className="config-note">Dispatched for code synthesis and AST modifications.</span>
-            </div>
-          </div>
-
-          {/* Advanced Model-Per-Phase Toggle */}
-          <div className="advanced-routing-accordion">
-            <button
-              type="button"
-              className="accordion-toggle-btn"
-              onClick={() => setShowAdvanced(!showAdvanced)}
-            >
-              <span>{showAdvanced ? "▾" : "▸"} Advanced Multi-Phase Model Routing</span>
-              <span className="badge-optional">{showAdvanced ? "Active" : "Configure per phase"}</span>
-            </button>
-
-            {showAdvanced && (
-              <div className="phase-routing-grid">
-                {(["analyze", "plan", "implement", "test", "review"] as const).map((phase) => (
-                  <div key={phase} className="phase-config-item">
-                    <span className="phase-item-label">{phase.toUpperCase()}</span>
-                    <select
-                      value={phaseModels[phase]}
-                      onChange={(e) => setPhaseModels({ ...phaseModels, [phase]: e.target.value })}
-                    >
-                      <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
-                      <option value="qwen-2.5-coder">Qwen 2.5 Coder</option>
-                      <option value="gpt-4o">GPT-4o</option>
-                      <option value="gpt-4o-mini">GPT-4o Mini</option>
-                      <option value="claude-3-5-haiku">Claude 3.5 Haiku</option>
-                    </select>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Form Actions */}
           <div className="composer-actions-bar">
-            <button type="button" className="btn-cancel" onClick={onCancel}>
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="btn-submit-task"
-              disabled={!prompt.trim() || !repo.trim()}
-            >
-              <span>Start Autonomous Orchestration</span>
-              <ArrowRightIcon size={14} color="#ffffff" />
-            </button>
+            <span className="mut sm grow">Nothing is committed until you approve the change.</span>
+            <button type="button" className="btn ghost btn-cancel" onClick={onCancel}>Cancel</button>
           </div>
         </form>
       </div>

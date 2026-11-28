@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { BarChartIcon } from "./Icons";
+import { DemoNote, DemoTag } from "./Demo";
 import type { DesktopSession } from "./TaskDetail";
 import type { DesktopProject } from "./WorkspacePages";
 
@@ -110,165 +110,80 @@ export function AnalyticsView({ sessions = [], projects = [] }: AnalyticsViewPro
   }
 
   return (
-    <div className="analytics-view-container">
-      {/* Header */}
-      <div className="analytics-header">
-        <div className="analytics-title-col">
-          <div className="title-row">
-            <BarChartIcon size={20} color="#27B7F5" />
-            <h2>Usage &amp; Engineering Analytics</h2>
+    <div className="page analytics-view-container">
+      <div className="col wide">
+        <div className="page-head">
+          <div>
+            <h1>Insights</h1>
+            <p className="sub">
+              {sessions.length === 0
+                ? "Numbers appear after your first task."
+                : `${metrics.approved} of ${metrics.total} tasks approved, for $${metrics.totalSpend} in total.`}
+            </p>
           </div>
-          <p>Telemetry, token consumption, and cost tracking across all local and cloud runs</p>
-        </div>
-
-        <div className="date-filter-segmented">
-          {(["7d", "30d", "90d"] as const).map((r) => (
-            <button
-              key={r}
-              className={`date-seg-btn ${dateRange === r ? "active" : ""}`}
-              onClick={() => setDateRange(r)}
-            >
-              Last {r.toUpperCase()}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Top 4 Metrics Cards */}
-      <div className="analytics-metrics-grid">
-        <div className="metric-card">
-          <span className="m-label">TOTAL TASKS EXECUTED</span>
-          <strong className="m-val">{metrics.total}</strong>
-          <span className="m-sub green">Across {metrics.projectsCount || 1} repository</span>
-        </div>
-
-        <div className="metric-card">
-          <span className="m-label">APPROVAL / MERGE RATE</span>
-          <strong className="m-val green">{metrics.approvalRate}%</strong>
-          <span className="m-sub">{metrics.approved} approved · {metrics.failed} failed</span>
-        </div>
-
-        <div className="metric-card">
-          <span className="m-label">TOTAL AI SPEND</span>
-          <strong className="m-val">${metrics.totalSpend}</strong>
-          <span className="m-sub">Avg ${metrics.avgCost} per task</span>
-        </div>
-
-        <div className="metric-card">
-          <span className="m-label">ACTIVE PROJECTS</span>
-          <strong className="m-val">{metrics.projectsCount || 1}</strong>
-          <span className="m-sub">Local Git repositories</span>
-        </div>
-      </div>
-
-      {/* Charts Section */}
-      <div className="analytics-charts-grid">
-        {/* Cost & Task Frequency Chart */}
-        <div className="chart-card">
-          <div className="chart-head">
-            <h3>Daily Task Execution Volume</h3>
-            <span className="chart-legend">Tasks / Day (Past 14 Days)</span>
+          <div className="row">
+            <DemoTag label="Date filter not wired yet" />
+            <div className="seg">
+              {(["7d", "30d", "90d"] as const).map((r) => (
+                <button key={r} className={dateRange === r ? "active" : ""} onClick={() => setDateRange(r)}>
+                  Last {r.toUpperCase()}
+                </button>
+              ))}
+            </div>
           </div>
+        </div>
 
-          <div className="css-bar-chart">
-            {chartData.buckets.map((b, i) => {
-              const heightPct = chartData.max > 0 ? Math.max((b.count / chartData.max) * 85, 8) : 8;
-              return (
-                <div key={i} className="chart-col">
-                  <div
-                    className="bar-fill"
-                    style={{ height: `${heightPct}%` }}
-                    title={`${b.day}: ${b.count} tasks`}
-                  />
-                  <span className="bar-x-label">{b.day.split("/")[1]}</span>
+        <div className="grid4">
+          <div className="card pad stat"><span className="mut sm">Tasks run</span><b>{metrics.total}</b><span className="mut sm">Across {metrics.projectsCount || 1} {(metrics.projectsCount || 1) > 1 ? "repositories" : "repository"}</span></div>
+          <div className="card pad stat"><span className="mut sm">Approval rate</span><b>{metrics.approvalRate}%</b><span className="mut sm">{metrics.approved} approved · {metrics.failed} failed</span></div>
+          <div className="card pad stat"><span className="mut sm">AI spend</span><b>${metrics.totalSpend}</b><span className="mut sm">Average ${metrics.avgCost} per task</span></div>
+          <div className="card pad stat"><span className="mut sm">Projects</span><b>{metrics.projectsCount || 1}</b><span className="mut sm">Local git repositories</span></div>
+        </div>
+
+        <div className="grid2 mt16">
+          <div className="card pad">
+            <div className="row"><h3 className="grow">Tasks per day</h3><span className="mut sm">Past 14 days</span></div>
+            <div className="mt16" style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 130 }}>
+              {chartData.buckets.map((b, i) => (
+                <div key={i} style={{ flex: 1, height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", gap: 5 }} title={`${b.day}: ${b.count} tasks`}>
+                  <div style={{ width: "100%", borderRadius: 4, height: b.count ? `${(b.count / chartData.max) * 82}%` : 2, background: b.count ? "var(--accent-primary)" : "var(--line2)" }} />
+                  <span className="mut" style={{ fontSize: 10 }}>{b.day.split("/")[1]}</span>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
-
-        {/* Model Breakdown */}
-        <div className="chart-card">
-          <div className="chart-head">
-            <h3>AI Model Distribution</h3>
-            <span className="chart-legend">By Execution Share</span>
-          </div>
-
-          <div className="models-distribution-list">
+          <div className="card pad">
+            <div className="row"><h3 className="grow">Models used</h3>{sessions.length === 0 && <DemoTag />}</div>
             {modelStats.map((item) => (
-              <div key={item.model} className="model-dist-row">
-                <div className="dist-row-top">
-                  <strong>{item.model}</strong>
-                  <span>{item.cost} · {item.count} tasks</span>
-                </div>
-                <div className="dist-progress-track">
-                  <div
-                    className="dist-progress-fill"
-                    style={{ width: `${Math.max(item.pct, 5)}%`, backgroundColor: item.color }}
-                  />
-                </div>
-                <div className="dist-row-bottom">
-                  <span>{item.count} runs</span>
-                  <span>{item.pct}% share</span>
-                </div>
+              <div key={item.model} className="mt12">
+                <div className="row"><span className="grow ell">{item.model}</span><span className="mut sm">{item.cost} · {item.count} tasks · {item.pct}%</span></div>
+                <div className="bar mt8"><i style={{ width: `${Math.max(item.pct, 5)}%`, background: item.color }} /></div>
               </div>
             ))}
           </div>
         </div>
-      </div>
 
-      {/* History Telemetry Table */}
-      <div className="analytics-history-section">
-        <div className="table-head-row">
-          <h3>Recent Session Executions Telemetry</h3>
-          <span className="chart-legend">{sessions.length} total recorded</span>
-        </div>
-
+        <div className="sec-h"><span>Recent tasks</span><span>{sessions.length} recorded</span></div>
         {sessions.length === 0 ? (
-          <p style={{ color: "var(--text-muted)", fontSize: 13, margin: "10px 0" }}>
-            No sessions executed yet. Start a new task to view live execution telemetry.
-          </p>
+          <DemoNote label="Nothing yet">No tasks have run yet.</DemoNote>
         ) : (
-          <table className="analytics-history-table">
-            <thead>
-              <tr>
-                <th>Task / Prompt</th>
-                <th>Repository</th>
-                <th>Agent / Model</th>
-                <th>Status</th>
-                <th>Cost</th>
-                <th>Executed</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.slice(0, 8).map((s) => (
-                <tr key={s.id}>
-                  <td style={{ fontWeight: 600, color: "var(--text-primary)", maxWidth: 280 }}>
-                    <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {s.prompt || s.title || "Autonomous Task"}
-                    </div>
-                  </td>
-                  <td>{s.projectName || s.repo || "sample-repo"}</td>
-                  <td>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
-                      {s.agent} · {s.model || "claude-3-5"}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`analytics-status-pill ${s.status}`}>
-                      {s.status.replace("_", " ")}
-                    </span>
-                  </td>
-                  <td style={{ fontFamily: "var(--font-mono)" }}>
-                    ${Number(s.costUsd || 0).toFixed(2)}
-                  </td>
-                  <td style={{ color: "var(--text-muted)" }}>
-                    {formatTime(s.createdAt)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="card">
+            <table className="t analytics-history-table">
+              <thead><tr><th>Task</th><th>Repository</th><th>Agent and model</th><th>Status</th><th>Cost</th><th>When</th></tr></thead>
+              <tbody>
+                {sessions.slice(0, 8).map((s) => (
+                  <tr key={s.id}>
+                    <td className="main"><div className="ell">{s.prompt || s.title || "Task"}</div></td>
+                    <td>{s.projectName || s.repo || "sample-repo"}</td>
+                    <td className="mono">{s.agent} · {s.model || "claude-3-5"}</td>
+                    <td><span className={`pill ${s.status}`}>{s.status.replace("_", " ")}</span></td>
+                    <td className="mono">${Number(s.costUsd || 0).toFixed(2)}</td>
+                    <td>{formatTime(s.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
